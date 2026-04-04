@@ -101,14 +101,31 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
   const gbId = isGoogleBooks ? id.slice(3) : null
   const olId = !isGoogleBooks ? id : null
 
-  // Look up book in our DB
-  const dbQuery = supabase
-    .from('book')
-    .select('*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name))')
+  const editionSelect = '*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name))'
 
-  const { data: dbBook } = gbId
-    ? await dbQuery.eq('google_books_id', gbId).single()
-    : await dbQuery.eq('open_library_id', olId!).single()
+  // Look up book in our DB by external ID first
+  let { data: dbBook } = gbId
+    ? await supabase.from('book').select(editionSelect).eq('google_books_id', gbId).single()
+    : await supabase.from('book').select(editionSelect).eq('open_library_id', olId!).single()
+
+  // If no editions found, try a title-based fallback (catches Illumicrate books not yet linked)
+  if (!dbBook || (dbBook.editions as unknown[]).length === 0) {
+    const externalTitle = dbBook?.title
+    if (externalTitle) {
+      const { data: titleMatch } = await supabase
+        .from('book')
+        .select(editionSelect)
+        .ilike('title', externalTitle)
+        .not('id', 'eq', dbBook?.id ?? '00000000-0000-0000-0000-000000000000')
+        .order('title')
+        .limit(1)
+        .single()
+      if (titleMatch && (titleMatch.editions as unknown[]).length > 0) {
+        // Merge: use the title match's editions but keep the external IDs from the original
+        dbBook = { ...titleMatch, ...dbBook, editions: titleMatch.editions }
+      }
+    }
+  }
 
   // Fetch from external API
   let title = dbBook?.title ?? 'Unknown Title'
