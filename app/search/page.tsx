@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 interface OLBook {
   key: string
@@ -91,18 +92,20 @@ export default function SearchPage() {
 
           return (
             <div key={book.key} className="flex gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <div className="w-16 shrink-0">
-                <div className="aspect-[2/3] relative bg-gray-800 rounded-lg overflow-hidden">
+              <Link href={`/book/${book.key.replace('/works/', '')}`} className="w-16 shrink-0">
+                <div className="aspect-[2/3] relative bg-gray-800 rounded-lg overflow-hidden hover:opacity-80 transition-opacity">
                   {cover ? (
                     <Image src={cover} alt={book.title} fill className="object-cover" sizes="64px" />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs">?</div>
                   )}
                 </div>
-              </div>
+              </Link>
 
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-white leading-tight">{book.title}</h3>
+                <Link href={`/book/${book.key.replace('/works/', '')}`} className="font-semibold text-white leading-tight hover:text-violet-300 transition-colors">
+                  {book.title}
+                </Link>
                 {book.author_name?.[0] && (
                   <p className="text-sm text-gray-400 mt-0.5">{book.author_name[0]}</p>
                 )}
