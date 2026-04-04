@@ -14,6 +14,18 @@ interface GBVolumeInfo {
   industryIdentifiers?: { type: string; identifier: string }[]
 }
 
+interface OLEdition {
+  title?: string
+  publishers?: string[]
+  publish_date?: string
+  isbn_13?: string[]
+  isbn_10?: string[]
+  physical_format?: string
+  number_of_pages?: number
+  covers?: number[]
+  languages?: { key: string }[]
+}
+
 async function fetchGoogleBook(gbId: string): Promise<GBVolumeInfo | null> {
   try {
     const key = process.env.GOOGLE_BOOKS_API_KEY
@@ -27,17 +39,57 @@ async function fetchGoogleBook(gbId: string): Promise<GBVolumeInfo | null> {
   } catch { return null }
 }
 
-async function fetchOLBook(olId: string) {
+async function fetchOLEditions(olId: string): Promise<OLEdition[]> {
   try {
-    const res = await fetch(`https://openlibrary.org/works/${olId}.json`, { next: { revalidate: 86400 } })
-    if (!res.ok) return null
-    return res.json()
+    const res = await fetch(
+      `https://openlibrary.org/works/${olId}/editions.json?limit=50`,
+      { next: { revalidate: 86400 } }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.entries ?? []
+  } catch { return [] }
+}
+
+async function findOLId(title: string, author: string): Promise<string | null> {
+  try {
+    const q = `title:${encodeURIComponent(title)} author:${encodeURIComponent(author.split(' ').slice(-1)[0])}`
+    const res = await fetch(
+      `https://openlibrary.org/search.json?q=${q}&limit=1&fields=key`,
+      { next: { revalidate: 86400 } }
+    )
+    const data = await res.json()
+    const key: string = data.docs?.[0]?.key ?? ''
+    return key ? key.replace('/works/', '') : null
   } catch { return null }
 }
 
 function cleanCover(url?: string) {
   if (!url) return null
   return url.replace('http://', 'https://').replace('zoom=1', 'zoom=3').replace('&edge=curl', '')
+}
+
+function formatFormat(format?: string) {
+  if (!format) return null
+  const f = format.toLowerCase()
+  if (f.includes('hardcover') || f.includes('hardback')) return 'Hardcover'
+  if (f.includes('paperback') || f.includes('softcover')) return 'Paperback'
+  if (f.includes('mass market')) return 'Mass Market'
+  if (f.includes('ebook') || f.includes('digital')) return 'eBook'
+  if (f.includes('audio')) return 'Audiobook'
+  return format
+}
+
+function formatLanguage(langKey?: string) {
+  const map: Record<string, string> = {
+    '/languages/eng': 'English',
+    '/languages/fre': 'French',
+    '/languages/spa': 'Spanish',
+    '/languages/ger': 'German',
+    '/languages/dut': 'Dutch',
+    '/languages/ita': 'Italian',
+  }
+  return langKey ? (map[langKey] ?? langKey.replace('/languages/', '')) : null
 }
 
 export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
@@ -66,6 +118,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
   let genre: string | null = dbBook?.genre ?? null
   let pageCount: number | null = dbBook?.page_count ?? null
   let publishedYear: string | null = null
+  let resolvedOlId: string | null = dbBook?.open_library_id ?? (isGoogleBooks ? null : olId)
 
   if (gbId) {
     const gbInfo = await fetchGoogleBook(gbId)
@@ -78,17 +131,34 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
       pageCount = gbInfo.pageCount ?? pageCount
       publishedYear = gbInfo.publishedDate?.slice(0, 4) ?? null
     }
+    // Try to find OL ID for edition data
+    if (!resolvedOlId) {
+      resolvedOlId = await findOLId(title, author)
+    }
   } else if (olId) {
-    const olBook = await fetchOLBook(olId)
-    if (olBook) {
-      description = typeof olBook.description === 'string' ? olBook.description : olBook.description?.value ?? description
-      if (!coverUrl && dbBook?.cover_ol_id) {
-        coverUrl = `https://covers.openlibrary.org/b/id/${dbBook.cover_ol_id}-L.jpg`
-      }
+    if (!coverUrl && dbBook?.cover_ol_id) {
+      coverUrl = `https://covers.openlibrary.org/b/id/${dbBook.cover_ol_id}-L.jpg`
     }
   }
 
-  const editions = (dbBook?.editions ?? []) as {
+  // Fetch all published editions from Open Library
+  const olEditions = resolvedOlId ? await fetchOLEditions(resolvedOlId) : []
+
+  // Deduplicate editions by ISBN, keep ones with useful data
+  const seenIsbns = new Set<string>()
+  const publishedEditions = olEditions
+    .filter(e => {
+      const isbn = e.isbn_13?.[0] ?? e.isbn_10?.[0]
+      if (!isbn && !e.publish_date) return false
+      if (isbn) {
+        if (seenIsbns.has(isbn)) return false
+        seenIsbns.add(isbn)
+      }
+      return true
+    })
+    .slice(0, 30)
+
+  const specialEditions = (dbBook?.editions ?? []) as {
     id: string
     edition_name: string
     cover_image?: string
@@ -114,7 +184,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
     title,
     author,
     google_books_id: gbId ?? undefined,
-    open_library_id: olId ?? undefined,
+    open_library_id: resolvedOlId ?? undefined,
     cover_image: coverUrl,
     synopsis: description,
     genre,
@@ -127,8 +197,8 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
         ← Back to search
       </Link>
 
-      <div className="flex flex-col md:flex-row gap-8 mb-10">
-        {/* Cover */}
+      {/* Header */}
+      <div className="flex flex-col md:flex-row gap-8 mb-12">
         <div className="w-full md:w-52 shrink-0">
           <div className="aspect-[2/3] relative bg-gray-800 rounded-xl overflow-hidden shadow-xl">
             {coverUrl ? (
@@ -139,20 +209,18 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {/* Info */}
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-white mb-1 leading-tight">{title}</h1>
-          <p className="text-gray-400 text-lg mb-1">by {author}</p>
+          <p className="text-gray-400 text-lg mb-3">by {author}</p>
 
-          <div className="flex flex-wrap gap-2 mb-5 mt-2">
-            {genre && (
-              <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full capitalize">{genre}</span>
-            )}
-            {pageCount && (
-              <span className="bg-gray-800 text-gray-500 text-xs px-3 py-1 rounded-full">{pageCount} pages</span>
-            )}
-            {publishedYear && (
-              <span className="bg-gray-800 text-gray-500 text-xs px-3 py-1 rounded-full">{publishedYear}</span>
+          <div className="flex flex-wrap gap-2 mb-5">
+            {genre && <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full capitalize">{genre}</span>}
+            {pageCount && <span className="bg-gray-800 text-gray-500 text-xs px-3 py-1 rounded-full">{pageCount} pages</span>}
+            {publishedYear && <span className="bg-gray-800 text-gray-500 text-xs px-3 py-1 rounded-full">First published {publishedYear}</span>}
+            {specialEditions.length > 0 && (
+              <span className="bg-violet-900/50 text-violet-300 text-xs px-3 py-1 rounded-full">
+                {specialEditions.length} special edition{specialEditions.length !== 1 ? 's' : ''}
+              </span>
             )}
           </div>
 
@@ -166,16 +234,13 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* Special Editions */}
-      <div>
-        <h2 className="text-xl font-bold text-white mb-4">
-          Special Editions
-          {editions.length > 0 && <span className="ml-2 text-sm text-gray-500 font-normal">{editions.length}</span>}
-        </h2>
-
-        {editions.length > 0 ? (
+      {/* Special Editions — subscription box, signed, etc. */}
+      {specialEditions.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-xl font-bold text-white mb-1">Special Editions</h2>
+          <p className="text-sm text-gray-500 mb-5">Subscription box exclusives, signed editions, and collector variants</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {editions.map(edition => (
+            {specialEditions.map(edition => (
               <Link
                 key={edition.id}
                 href={`/edition/${edition.id}`}
@@ -203,12 +268,62 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
               </Link>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* Published Editions — ISBNs and formats from Open Library */}
+      <section>
+        <h2 className="text-xl font-bold text-white mb-1">Published Editions</h2>
+        <p className="text-sm text-gray-500 mb-5">All known printings, formats, and ISBN variants</p>
+
+        {publishedEditions.length > 0 ? (
+          <div className="flex flex-col divide-y divide-gray-800 border border-gray-800 rounded-xl overflow-hidden">
+            {publishedEditions.map((edition, i) => {
+              const isbn = edition.isbn_13?.[0] ?? edition.isbn_10?.[0]
+              const cover = edition.covers?.[0]
+                ? `https://covers.openlibrary.org/b/id/${edition.covers[0]}-S.jpg`
+                : null
+              const format = formatFormat(edition.physical_format)
+              const lang = formatLanguage(edition.languages?.[0]?.key)
+              const publisher = edition.publishers?.[0]
+              const year = edition.publish_date?.match(/\d{4}/)?.[0]
+
+              return (
+                <div key={i} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-900/50 transition-colors">
+                  {/* Small cover */}
+                  <div className="w-8 h-12 relative bg-gray-800 rounded overflow-hidden shrink-0">
+                    {cover ? (
+                      <Image src={cover} alt={edition.title ?? title} fill className="object-cover" sizes="32px" unoptimized />
+                    ) : (
+                      <div className="absolute inset-0 bg-gray-800" />
+                    )}
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                      {format && <span className="text-sm font-medium text-white">{format}</span>}
+                      {publisher && <span className="text-sm text-gray-400">{publisher}</span>}
+                      {year && <span className="text-sm text-gray-500">{year}</span>}
+                      {lang && lang !== 'English' && (
+                        <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">{lang}</span>
+                      )}
+                      {edition.number_of_pages && (
+                        <span className="text-xs text-gray-600">{edition.number_of_pages} pages</span>
+                      )}
+                    </div>
+                    {isbn && <p className="text-xs text-gray-600 mt-0.5 font-mono">ISBN: {isbn}</p>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         ) : (
           <div className="border border-dashed border-gray-800 rounded-xl p-8 text-center text-gray-600 text-sm">
-            No special editions tracked yet for this book.
+            No edition data found for this book.
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }
