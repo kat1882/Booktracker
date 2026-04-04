@@ -14,9 +14,13 @@ interface Props {
   book: {
     title: string
     author: string
-    open_library_id: string
+    google_books_id?: string
+    open_library_id?: string
+    cover_image?: string | null
     cover_ol_id?: string | null
     synopsis?: string | null
+    genre?: string | null
+    page_count?: number | null
   }
   currentStatus: string | null
   isLoggedIn: boolean

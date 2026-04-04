@@ -8,14 +8,28 @@ export async function POST(request: Request) {
 
   const { book, status } = await request.json()
 
-  // Check if book already exists
-  const { data: existing } = await supabase
-    .from('book')
-    .select('id')
-    .eq('open_library_id', book.open_library_id)
-    .single()
+  // Check if book already exists by google_books_id or open_library_id
+  let existingId: string | null = null
 
-  let bookId = existing?.id
+  if (book.google_books_id) {
+    const { data } = await supabase
+      .from('book')
+      .select('id')
+      .eq('google_books_id', book.google_books_id)
+      .single()
+    existingId = data?.id ?? null
+  }
+
+  if (!existingId && book.open_library_id) {
+    const { data } = await supabase
+      .from('book')
+      .select('id')
+      .eq('open_library_id', book.open_library_id)
+      .single()
+    existingId = data?.id ?? null
+  }
+
+  let bookId = existingId
 
   if (!bookId) {
     const { data: newBook, error } = await supabase
@@ -25,9 +39,12 @@ export async function POST(request: Request) {
         author: book.author,
         genre: book.genre ?? null,
         original_pub_date: book.first_publish_year ? `${book.first_publish_year}-01-01` : null,
-        open_library_id: book.open_library_id,
+        open_library_id: book.open_library_id ?? null,
         cover_ol_id: book.cover_ol_id ?? null,
+        google_books_id: book.google_books_id ?? null,
+        cover_image: book.cover_image ?? null,
         synopsis: book.synopsis ?? null,
+        page_count: book.page_count ?? null,
       })
       .select('id')
       .single()

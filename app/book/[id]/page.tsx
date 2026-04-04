@@ -3,16 +3,31 @@ import Image from 'next/image'
 import Link from 'next/link'
 import AddToShelfButton from './AddToShelfButton'
 
-interface OLBook {
+interface GBVolumeInfo {
   title: string
-  description?: string | { value: string }
-  authors?: { author: { key: string } }[]
-  covers?: number[]
-  first_publish_date?: string
-  subjects?: string[]
+  authors?: string[]
+  description?: string
+  publishedDate?: string
+  categories?: string[]
+  pageCount?: number
+  imageLinks?: { thumbnail?: string; large?: string; extraLarge?: string }
+  industryIdentifiers?: { type: string; identifier: string }[]
 }
 
-async function fetchOLBook(olId: string): Promise<OLBook | null> {
+async function fetchGoogleBook(gbId: string): Promise<GBVolumeInfo | null> {
+  try {
+    const key = process.env.GOOGLE_BOOKS_API_KEY
+    const res = await fetch(
+      `https://www.googleapis.com/books/v1/volumes/${gbId}?key=${key}`,
+      { next: { revalidate: 86400 } }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.volumeInfo ?? null
+  } catch { return null }
+}
+
+async function fetchOLBook(olId: string) {
   try {
     const res = await fetch(`https://openlibrary.org/works/${olId}.json`, { next: { revalidate: 86400 } })
     if (!res.ok) return null
@@ -20,13 +35,9 @@ async function fetchOLBook(olId: string): Promise<OLBook | null> {
   } catch { return null }
 }
 
-async function fetchOLAuthor(authorKey: string): Promise<string> {
-  try {
-    const res = await fetch(`https://openlibrary.org${authorKey}.json`, { next: { revalidate: 86400 } })
-    if (!res.ok) return 'Unknown'
-    const data = await res.json()
-    return data.name ?? 'Unknown'
-  } catch { return 'Unknown' }
+function cleanCover(url?: string) {
+  if (!url) return null
+  return url.replace('http://', 'https://').replace('zoom=1', 'zoom=3').replace('&edge=curl', '')
 }
 
 export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,24 +45,48 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Check if book exists in our DB
-  const { data: dbBook } = await supabase
+  const isGoogleBooks = id.startsWith('gb_')
+  const gbId = isGoogleBooks ? id.slice(3) : null
+  const olId = !isGoogleBooks ? id : null
+
+  // Look up book in our DB
+  const dbQuery = supabase
     .from('book')
     .select('*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name))')
-    .eq('open_library_id', id)
-    .single()
 
-  // Fetch from Open Library
-  const olBook = await fetchOLBook(id)
-  const authorName = dbBook?.author
-    ?? (olBook?.authors?.[0] ? await fetchOLAuthor(olBook.authors[0].author.key) : 'Unknown')
+  const { data: dbBook } = gbId
+    ? await dbQuery.eq('google_books_id', gbId).single()
+    : await dbQuery.eq('open_library_id', olId!).single()
 
-  const title = dbBook?.title ?? olBook?.title ?? 'Unknown Title'
-  const coverId = dbBook?.cover_ol_id ?? olBook?.covers?.[0]?.toString()
-  const coverUrl = coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : null
-  const description = typeof olBook?.description === 'string'
-    ? olBook.description
-    : olBook?.description?.value ?? dbBook?.synopsis ?? null
+  // Fetch from external API
+  let title = dbBook?.title ?? 'Unknown Title'
+  let author = dbBook?.author ?? 'Unknown'
+  let coverUrl: string | null = dbBook?.cover_image ?? null
+  let description: string | null = dbBook?.synopsis ?? null
+  let genre: string | null = dbBook?.genre ?? null
+  let pageCount: number | null = dbBook?.page_count ?? null
+  let publishedYear: string | null = null
+
+  if (gbId) {
+    const gbInfo = await fetchGoogleBook(gbId)
+    if (gbInfo) {
+      title = gbInfo.title ?? title
+      author = gbInfo.authors?.[0] ?? author
+      coverUrl = cleanCover(gbInfo.imageLinks?.extraLarge ?? gbInfo.imageLinks?.large ?? gbInfo.imageLinks?.thumbnail) ?? coverUrl
+      description = gbInfo.description ?? description
+      genre = gbInfo.categories?.[0]?.split('/')[0].trim().toLowerCase() ?? genre
+      pageCount = gbInfo.pageCount ?? pageCount
+      publishedYear = gbInfo.publishedDate?.slice(0, 4) ?? null
+    }
+  } else if (olId) {
+    const olBook = await fetchOLBook(olId)
+    if (olBook) {
+      description = typeof olBook.description === 'string' ? olBook.description : olBook.description?.value ?? description
+      if (!coverUrl && dbBook?.cover_ol_id) {
+        coverUrl = `https://covers.openlibrary.org/b/id/${dbBook.cover_ol_id}-L.jpg`
+      }
+    }
+  }
 
   const editions = (dbBook?.editions ?? []) as {
     id: string
@@ -63,7 +98,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
     source?: { name: string }
   }[]
 
-  // Get user's shelf status for this book
+  // Get user's shelf status
   let shelfStatus: string | null = null
   if (user && dbBook?.id) {
     const { data: collection } = await supabase
@@ -77,10 +112,13 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
   const bookPayload = {
     title,
-    author: authorName,
-    open_library_id: id,
-    cover_ol_id: coverId ?? null,
+    author,
+    google_books_id: gbId ?? undefined,
+    open_library_id: olId ?? undefined,
+    cover_image: coverUrl,
     synopsis: description,
+    genre,
+    page_count: pageCount,
   }
 
   return (
@@ -91,10 +129,10 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
       <div className="flex flex-col md:flex-row gap-8 mb-10">
         {/* Cover */}
-        <div className="w-full md:w-48 shrink-0">
-          <div className="aspect-[2/3] relative bg-gray-800 rounded-xl overflow-hidden">
+        <div className="w-full md:w-52 shrink-0">
+          <div className="aspect-[2/3] relative bg-gray-800 rounded-xl overflow-hidden shadow-xl">
             {coverUrl ? (
-              <Image src={coverUrl} alt={title} fill className="object-cover" sizes="192px" />
+              <Image src={coverUrl} alt={title} fill className="object-cover" sizes="208px" unoptimized />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm p-4 text-center">{title}</div>
             )}
@@ -103,29 +141,39 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
         {/* Info */}
         <div className="flex-1">
-          <h1 className="text-3xl font-bold text-white mb-1">{title}</h1>
-          <p className="text-gray-400 text-lg mb-4">by {authorName}</p>
+          <h1 className="text-3xl font-bold text-white mb-1 leading-tight">{title}</h1>
+          <p className="text-gray-400 text-lg mb-1">by {author}</p>
 
-          {/* Shelf buttons */}
-          <AddToShelfButton
-            book={bookPayload}
-            currentStatus={shelfStatus}
-            isLoggedIn={!!user}
-          />
+          <div className="flex flex-wrap gap-2 mb-5 mt-2">
+            {genre && (
+              <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full capitalize">{genre}</span>
+            )}
+            {pageCount && (
+              <span className="bg-gray-800 text-gray-500 text-xs px-3 py-1 rounded-full">{pageCount} pages</span>
+            )}
+            {publishedYear && (
+              <span className="bg-gray-800 text-gray-500 text-xs px-3 py-1 rounded-full">{publishedYear}</span>
+            )}
+          </div>
+
+          <AddToShelfButton book={bookPayload} currentStatus={shelfStatus} isLoggedIn={!!user} />
 
           {description && (
-            <p className="text-gray-400 text-sm leading-relaxed mt-6 max-w-2xl line-clamp-6">{description}</p>
+            <p className="text-gray-400 text-sm leading-relaxed mt-6 max-w-2xl line-clamp-6">
+              {description.replace(/<[^>]+>/g, '')}
+            </p>
           )}
         </div>
       </div>
 
       {/* Special Editions */}
-      {editions.length > 0 && (
-        <div>
-          <h2 className="text-xl font-bold text-white mb-4">
-            Special Editions
-            <span className="ml-2 text-sm text-gray-500 font-normal">{editions.length}</span>
-          </h2>
+      <div>
+        <h2 className="text-xl font-bold text-white mb-4">
+          Special Editions
+          {editions.length > 0 && <span className="ml-2 text-sm text-gray-500 font-normal">{editions.length}</span>}
+        </h2>
+
+        {editions.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {editions.map(edition => (
               <Link
@@ -155,14 +203,12 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
               </Link>
             ))}
           </div>
-        </div>
-      )}
-
-      {editions.length === 0 && (
-        <div className="border border-dashed border-gray-800 rounded-xl p-8 text-center text-gray-600 text-sm">
-          No special editions tracked yet for this book.
-        </div>
-      )}
+        ) : (
+          <div className="border border-dashed border-gray-800 rounded-xl p-8 text-center text-gray-600 text-sm">
+            No special editions tracked yet for this book.
+          </div>
+        )}
+      </div>
     </div>
   )
 }
