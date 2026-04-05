@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -12,37 +13,80 @@ interface GBBook {
     description?: string
     categories?: string[]
     pageCount?: number
-    imageLinks?: {
-      thumbnail?: string
-      smallThumbnail?: string
-    }
+    imageLinks?: { thumbnail?: string; smallThumbnail?: string }
     industryIdentifiers?: { type: string; identifier: string }[]
   }
 }
 
 type ShelfStatus = 'read' | 'reading' | 'want_to_read'
 
+const GENRES = [
+  { label: 'Fantasy', value: 'fantasy' },
+  { label: 'Romance', value: 'romance' },
+  { label: 'Sci-Fi', value: 'science fiction' },
+  { label: 'Thriller', value: 'thriller' },
+  { label: 'Horror', value: 'horror' },
+  { label: 'Mystery', value: 'mystery' },
+  { label: 'YA', value: 'young adult' },
+  { label: 'Historical', value: 'historical fiction' },
+]
+
 function cleanCover(url?: string) {
   if (!url) return null
-  // Force HTTPS and higher resolution
   return url.replace('http://', 'https://').replace('zoom=1', 'zoom=2')
 }
 
-export default function SearchPage() {
-  const [query, setQuery] = useState('')
+function SearchInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const [query, setQuery] = useState(searchParams.get('q') ?? '')
+  const [genre, setGenre] = useState(searchParams.get('genre') ?? '')
   const [results, setResults] = useState<GBBook[]>([])
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
   const [added, setAdded] = useState<Record<string, ShelfStatus>>({})
 
-  async function search(e: React.FormEvent) {
-    e.preventDefault()
-    if (!query.trim()) return
+  // Run search whenever URL params change
+  useEffect(() => {
+    const q = searchParams.get('q') ?? ''
+    const g = searchParams.get('genre') ?? ''
+    setQuery(q)
+    setGenre(g)
+    if (q) doSearch(q, g)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()])
+
+  async function doSearch(q: string, g: string) {
+    if (!q.trim()) return
     setLoading(true)
-    const res = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`)
+    const fullQuery = g ? `${q} subject:${g}` : q
+    const res = await fetch(`/api/books/search?q=${encodeURIComponent(fullQuery)}`)
     const data = await res.json()
     setResults(data.books ?? [])
     setLoading(false)
+  }
+
+  function handleSubmit(e: React.SyntheticEvent) {
+    e.preventDefault()
+    if (!query.trim()) return
+    const params = new URLSearchParams()
+    params.set('q', query.trim())
+    if (genre) params.set('genre', genre)
+    router.push(`/search?${params.toString()}`)
+  }
+
+  function handleGenreToggle(value: string) {
+    const newGenre = genre === value ? '' : value
+    setGenre(newGenre)
+    if (query.trim()) {
+      const params = new URLSearchParams()
+      params.set('q', query.trim())
+      if (newGenre) params.set('genre', newGenre)
+      router.push(`/search?${params.toString()}`)
+    } else {
+      setGenre(newGenre)
+    }
   }
 
   async function addToShelf(book: GBBook, status: ShelfStatus) {
@@ -77,11 +121,14 @@ export default function SearchPage() {
     setAdding(null)
   }
 
+  const currentSearchUrl = `/search?${searchParams.toString()}`
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <h1 className="text-2xl font-bold text-white mb-6">Search Books</h1>
 
-      <form onSubmit={search} className="flex gap-3 mb-8">
+      {/* Search bar */}
+      <form onSubmit={handleSubmit} className="flex gap-3 mb-4">
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -93,10 +140,36 @@ export default function SearchPage() {
           disabled={loading}
           className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
         >
-          {loading ? 'Searching...' : 'Search'}
+          {loading ? 'Searching…' : 'Search'}
         </button>
       </form>
 
+      {/* Genre filters */}
+      <div className="flex flex-wrap gap-2 mb-8">
+        {GENRES.map(g => (
+          <button
+            key={g.value}
+            onClick={() => handleGenreToggle(g.value)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+              genre === g.value
+                ? 'bg-violet-600 border-violet-500 text-white'
+                : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
+        {genre && (
+          <button
+            onClick={() => handleGenreToggle(genre)}
+            className="text-xs px-3 py-1.5 rounded-full border border-gray-700 text-gray-500 hover:text-red-400 hover:border-red-800 transition-colors"
+          >
+            Clear ✕
+          </button>
+        )}
+      </div>
+
+      {/* Results */}
       <div className="flex flex-col gap-4">
         {results.map(book => {
           const info = book.volumeInfo
@@ -106,7 +179,7 @@ export default function SearchPage() {
 
           return (
             <div key={book.id} className="flex gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <Link href={`/book/gb_${book.id}`} className="w-16 shrink-0">
+              <Link href={`/book/gb_${book.id}?from=${encodeURIComponent(currentSearchUrl)}`} className="w-16 shrink-0">
                 <div className="aspect-[2/3] relative bg-gray-800 rounded-lg overflow-hidden hover:opacity-80 transition-opacity">
                   {cover ? (
                     <Image src={cover} alt={info.title} fill className="object-cover" sizes="64px" unoptimized />
@@ -117,7 +190,10 @@ export default function SearchPage() {
               </Link>
 
               <div className="flex-1 min-w-0">
-                <Link href={`/book/gb_${book.id}`} className="font-semibold text-white leading-tight hover:text-violet-300 transition-colors line-clamp-2">
+                <Link
+                  href={`/book/gb_${book.id}?from=${encodeURIComponent(currentSearchUrl)}`}
+                  className="font-semibold text-white leading-tight hover:text-violet-300 transition-colors line-clamp-2"
+                >
                   {info.title}
                 </Link>
                 {info.authors?.[0] && <p className="text-sm text-gray-400 mt-0.5">{info.authors[0]}</p>}
@@ -138,7 +214,7 @@ export default function SearchPage() {
                           onClick={() => addToShelf(book, status)}
                           className="text-xs bg-gray-800 hover:bg-violet-600 disabled:opacity-50 text-gray-300 hover:text-white px-3 py-1.5 rounded-full transition-colors capitalize"
                         >
-                          {isAdding ? '...' : status.replace(/_/g, ' ')}
+                          {isAdding ? '…' : status.replace(/_/g, ' ')}
                         </button>
                       ))}
                     </>
@@ -157,5 +233,13 @@ export default function SearchPage() {
         <p className="text-center text-gray-500 py-16">Search for any book to add it to your shelves.</p>
       )}
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchInner />
+    </Suspense>
   )
 }

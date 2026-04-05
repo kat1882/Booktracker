@@ -92,8 +92,10 @@ function formatLanguage(langKey?: string) {
   return langKey ? (map[langKey] ?? langKey.replace('/languages/', '')) : null
 }
 
-export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BookPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id } = await params
+  const { from } = await searchParams
+  const backHref = from ?? '/search'
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -210,7 +212,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
-      <Link href="/search" className="text-sm text-gray-400 hover:text-white mb-6 inline-block transition-colors">
+      <Link href={backHref} className="text-sm text-gray-400 hover:text-white mb-6 inline-block transition-colors">
         ← Back to search
       </Link>
 
