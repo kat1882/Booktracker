@@ -21,6 +21,7 @@ interface Stats {
   wantToRead: number
   readThisYear: number
   avgRating: number | null
+  collectionValue: number | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -83,7 +84,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
   return (
     <div>
       {/* Stats bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-white">{stats.total}</p>
           <p className="text-xs text-gray-500 mt-0.5">Books tracked</p>
@@ -101,6 +102,12 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
             {stats.avgRating ? stats.avgRating.toFixed(1) : '—'}
           </p>
           <p className="text-xs text-gray-500 mt-0.5">Avg rating</p>
+        </div>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center col-span-2 sm:col-span-1">
+          <p className="text-2xl font-bold text-emerald-400">
+            {stats.collectionValue ? `£${stats.collectionValue.toLocaleString('en-GB', { maximumFractionDigits: 0 })}` : '—'}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">Est. collection value</p>
         </div>
       </div>
 

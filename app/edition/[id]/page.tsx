@@ -43,6 +43,14 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
     { label: 'Original Price', value: edition.original_retail_price ? `£${edition.original_retail_price}` : null },
   ].filter(d => d.value)
 
+  const hasValue = edition.estimated_value != null
+  const valueAge = edition.value_updated_at
+    ? Math.floor((Date.now() - new Date(edition.value_updated_at).getTime()) / (1000 * 60 * 60 * 24))
+    : null
+  const priceDiff = hasValue && edition.original_retail_price
+    ? ((edition.estimated_value - edition.original_retail_price) / edition.original_retail_price) * 100
+    : null
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <Link href="/browse" className="text-sm text-gray-400 hover:text-white mb-6 inline-block transition-colors">
@@ -89,6 +97,38 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
           )}
 
           <h2 className="text-lg font-semibold text-white mb-4">{edition.edition_name}</h2>
+
+          {/* Price card */}
+          {(hasValue || edition.original_retail_price) && (
+            <div className="flex gap-3 mb-6">
+              {edition.original_retail_price && (
+                <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-center">
+                  <p className="text-xs text-gray-500 mb-1">Original Retail</p>
+                  <p className="text-lg font-bold text-white">£{Number(edition.original_retail_price).toFixed(2)}</p>
+                </div>
+              )}
+              {hasValue && (
+                <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-center">
+                  <p className="text-xs text-gray-500 mb-1">Est. Market Value</p>
+                  <p className="text-lg font-bold text-white">£{Number(edition.estimated_value).toFixed(2)}</p>
+                  {priceDiff !== null && (
+                    <p className={`text-xs mt-0.5 font-medium ${priceDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {priceDiff >= 0 ? '▲' : '▼'} {Math.abs(priceDiff).toFixed(0)}% vs retail
+                    </p>
+                  )}
+                  {edition.ebay_price_low && edition.ebay_price_high && (
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      £{Number(edition.ebay_price_low).toFixed(0)}–£{Number(edition.ebay_price_high).toFixed(0)}
+                      {edition.ebay_sold_count ? ` · ${edition.ebay_sold_count} sales` : ''}
+                    </p>
+                  )}
+                  {valueAge !== null && (
+                    <p className="text-xs text-gray-700 mt-0.5">Updated {valueAge === 0 ? 'today' : `${valueAge}d ago`}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Detail grid */}
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 mb-6">

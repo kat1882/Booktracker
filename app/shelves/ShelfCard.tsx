@@ -11,7 +11,7 @@ interface ShelfEntry {
   date_read: string | null
   date_started: string | null
   book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
-  edition: { id: string; cover_image?: string; edition_name?: string; source?: { name: string } } | null
+  edition: { id: string; cover_image?: string; edition_name?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
 }
 
 const STATUS_OPTIONS = [
@@ -33,7 +33,7 @@ function StarRating({ rating, entryId, onUpdate }: { rating: number | null; entr
           onMouseLeave={() => setHovered(0)}
           className="text-sm leading-none"
         >
-          <span className={(hovered || rating ?? 0) >= star ? 'text-yellow-400' : 'text-gray-700'}>★</span>
+          <span className={(hovered || (rating ?? 0)) >= star ? 'text-yellow-400' : 'text-gray-700'}>★</span>
         </button>
       ))}
     </div>
@@ -83,6 +83,12 @@ export default function ShelfCard({ entry, onUpdate, onRemove }: {
 
         {edition?.source?.name && (
           <p className="text-xs text-violet-400 mt-0.5">{edition.source.name} edition</p>
+        )}
+        {(edition?.estimated_value || edition?.original_retail_price) && (
+          <p className="text-xs text-emerald-400 mt-0.5">
+            £{Number(edition.estimated_value ?? edition.original_retail_price).toFixed(2)}
+            {edition.estimated_value && <span className="text-gray-600 ml-1">est. value</span>}
+          </p>
         )}
 
         <div className="flex items-center gap-3 mt-1.5">

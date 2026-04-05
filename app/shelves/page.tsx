@@ -13,7 +13,7 @@ export default async function ShelvesPage() {
     .select(`
       id, reading_status, rating, date_read, date_started,
       book:book_id ( id, title, author, cover_ol_id, open_library_id, google_books_id ),
-      edition:edition_id ( id, edition_name, cover_image, source:source_id ( name ) )
+      edition:edition_id ( id, edition_name, cover_image, estimated_value, original_retail_price, source:source_id ( name ) )
     `)
     .eq('user_id', user.id)
     .order('date_read', { ascending: false, nullsFirst: false })
@@ -25,12 +25,18 @@ export default async function ShelvesPage() {
     date_read: string | null
     date_started: string | null
     book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
-    edition: { id: string; cover_image?: string; edition_name?: string; source?: { name: string } } | null
+    edition: { id: string; cover_image?: string; edition_name?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
   }[]
 
   const thisYear = new Date().getFullYear()
   const readEntries = all.filter(e => e.reading_status === 'read')
   const ratings = readEntries.map(e => e.rating).filter((r): r is number => r !== null)
+
+  // Collection value: use estimated_value if available, fall back to original_retail_price
+  const collectionValue = all.reduce((sum, e) => {
+    const val = e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0
+    return sum + Number(val)
+  }, 0)
 
   const stats = {
     total: all.length,
@@ -39,6 +45,7 @@ export default async function ShelvesPage() {
     wantToRead: all.filter(e => e.reading_status === 'want_to_read').length,
     readThisYear: readEntries.filter(e => e.date_read?.startsWith(String(thisYear))).length,
     avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
+    collectionValue: collectionValue > 0 ? collectionValue : null,
   }
 
   return (
