@@ -1,14 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import Image from 'next/image'
 import Link from 'next/link'
-
-const STATUS_LABELS: Record<string, string> = {
-  reading: 'Currently Reading',
-  want_to_read: 'Want to Read',
-  read: 'Read',
-  dnf: 'Did Not Finish',
-}
+import ShelvesClient from './ShelvesClient'
 
 export default async function ShelvesPage() {
   const supabase = await createClient()
@@ -18,21 +11,35 @@ export default async function ShelvesPage() {
   const { data: entries } = await supabase
     .from('user_collection')
     .select(`
-      id, reading_status, rating, date_read,
-      book:book_id ( id, title, author, cover_ol_id, genre, open_library_id ),
+      id, reading_status, rating, date_read, date_started,
+      book:book_id ( id, title, author, cover_ol_id, open_library_id, google_books_id ),
       edition:edition_id ( id, edition_name, cover_image, source:source_id ( name ) )
     `)
     .eq('user_id', user.id)
-    .order('reading_status')
+    .order('date_read', { ascending: false, nullsFirst: false })
 
-  const grouped = (entries ?? []).reduce<Record<string, typeof entries>>((acc, entry) => {
-    const status = entry.reading_status ?? 'want_to_read'
-    if (!acc[status]) acc[status] = []
-    acc[status]!.push(entry)
-    return acc
-  }, {})
+  const all = (entries ?? []) as unknown as {
+    id: string
+    reading_status: string
+    rating: number | null
+    date_read: string | null
+    date_started: string | null
+    book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
+    edition: { id: string; cover_image?: string; edition_name?: string; source?: { name: string } } | null
+  }[]
 
-  const order = ['reading', 'want_to_read', 'read', 'dnf']
+  const thisYear = new Date().getFullYear()
+  const readEntries = all.filter(e => e.reading_status === 'read')
+  const ratings = readEntries.map(e => e.rating).filter((r): r is number => r !== null)
+
+  const stats = {
+    total: all.length,
+    read: readEntries.length,
+    reading: all.filter(e => e.reading_status === 'reading').length,
+    wantToRead: all.filter(e => e.reading_status === 'want_to_read').length,
+    readThisYear: readEntries.filter(e => e.date_read?.startsWith(String(thisYear))).length,
+    avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -46,60 +53,7 @@ export default async function ShelvesPage() {
         </Link>
       </div>
 
-      {(entries ?? []).length === 0 && (
-        <div className="text-center py-24">
-          <p className="text-gray-500 mb-4">Your shelves are empty.</p>
-          <Link href="/search" className="text-violet-400 hover:text-violet-300">Search for books to add →</Link>
-        </div>
-      )}
-
-      {order.map(status => {
-        const shelf = grouped[status]
-        if (!shelf?.length) return null
-        return (
-          <section key={status} className="mb-10">
-            <h2 className="text-lg font-semibold text-white mb-4">
-              {STATUS_LABELS[status]}
-              <span className="ml-2 text-sm text-gray-500 font-normal">{shelf.length}</span>
-            </h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
-              {shelf.map(entry => {
-                const book = entry.book as unknown as { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string } | null
-                const edition = entry.edition as unknown as { id: string; cover_image?: string } | null
-                const coverUrl = edition?.cover_image
-                  ?? (book?.cover_ol_id ? `https://covers.openlibrary.org/b/id/${book.cover_ol_id}-M.jpg` : null)
-
-                return (
-                  <Link
-                    key={entry.id}
-                    href={book ? `/book/${book.open_library_id ?? book.id}` : '#'}
-                    className="group"
-                  >
-                    <div className="aspect-[2/3] relative bg-gray-800 rounded-lg overflow-hidden mb-1">
-                      {coverUrl ? (
-                        <Image
-                          src={coverUrl}
-                          alt={book?.title ?? ''}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-300"
-                          sizes="120px"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-1">
-                          {book?.title}
-                        </div>
-                      )}
-                    </div>
-                    {entry.rating && (
-                      <p className="text-xs text-yellow-400 text-center">{'★'.repeat(entry.rating)}</p>
-                    )}
-                  </Link>
-                )
-              })}
-            </div>
-          </section>
-        )
-      })}
+      <ShelvesClient initialEntries={all} stats={stats} />
     </div>
   )
 }
