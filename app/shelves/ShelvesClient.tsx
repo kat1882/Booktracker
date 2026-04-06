@@ -105,7 +105,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center col-span-2 sm:col-span-1">
           <p className="text-2xl font-bold text-emerald-400">
-            {stats.collectionValue ? `£${stats.collectionValue.toLocaleString('en-GB', { maximumFractionDigits: 0 })}` : '—'}
+            {stats.collectionValue ? `$${stats.collectionValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
           </p>
           <p className="text-xs text-gray-500 mt-0.5">Est. collection value</p>
         </div>

@@ -58,7 +58,7 @@ export default function ShelfCard({ entry, onUpdate, onRemove }: {
 
   const formatDate = (d: string | null) => {
     if (!d) return null
-    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    return new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   return (
@@ -86,7 +86,7 @@ export default function ShelfCard({ entry, onUpdate, onRemove }: {
         )}
         {(edition?.estimated_value || edition?.original_retail_price) && (
           <p className="text-xs text-emerald-400 mt-0.5">
-            £{Number(edition.estimated_value ?? edition.original_retail_price).toFixed(2)}
+            ${Number(edition.estimated_value ?? edition.original_retail_price).toFixed(2)}
             {edition.estimated_value && <span className="text-gray-600 ml-1">est. value</span>}
           </p>
         )}

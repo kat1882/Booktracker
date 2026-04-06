@@ -40,7 +40,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
     { label: 'Foiling', value: edition.foiling },
     { label: 'Signature', value: edition.signature_type },
     { label: 'Extras', value: edition.extras },
-    { label: 'Original Price', value: edition.original_retail_price ? `£${edition.original_retail_price}` : null },
+    { label: 'Original Price', value: edition.original_retail_price ? `$${edition.original_retail_price}` : null },
   ].filter(d => d.value)
 
   const hasValue = edition.estimated_value != null
@@ -104,13 +104,13 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
               {edition.original_retail_price && (
                 <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-center">
                   <p className="text-xs text-gray-500 mb-1">Original Retail</p>
-                  <p className="text-lg font-bold text-white">£{Number(edition.original_retail_price).toFixed(2)}</p>
+                  <p className="text-lg font-bold text-white">${Number(edition.original_retail_price).toFixed(2)}</p>
                 </div>
               )}
               {hasValue && (
                 <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-center">
                   <p className="text-xs text-gray-500 mb-1">Est. Market Value</p>
-                  <p className="text-lg font-bold text-white">£{Number(edition.estimated_value).toFixed(2)}</p>
+                  <p className="text-lg font-bold text-white">${Number(edition.estimated_value).toFixed(2)}</p>
                   {priceDiff !== null && (
                     <p className={`text-xs mt-0.5 font-medium ${priceDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {priceDiff >= 0 ? '▲' : '▼'} {Math.abs(priceDiff).toFixed(0)}% vs retail
@@ -118,7 +118,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
                   )}
                   {edition.ebay_price_low && edition.ebay_price_high && (
                     <p className="text-xs text-gray-600 mt-0.5">
-                      £{Number(edition.ebay_price_low).toFixed(0)}–£{Number(edition.ebay_price_high).toFixed(0)}
+                      ${Number(edition.ebay_price_low).toFixed(0)}–${Number(edition.ebay_price_high).toFixed(0)}
                       {edition.ebay_sold_count ? ` · ${edition.ebay_sold_count} sales` : ''}
                     </p>
                   )}
