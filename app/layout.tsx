@@ -29,6 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {user ? (
               <>
                 <Link href="/shelves" className="hover:text-white transition-colors">My Shelves</Link>
+                <Link href="/wishlist" className="hover:text-white transition-colors">Wish List</Link>
                 <form action="/auth/signout" method="POST">
                   <button className="hover:text-white transition-colors">Sign out</button>
                 </form>

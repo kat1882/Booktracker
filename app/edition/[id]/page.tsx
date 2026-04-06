@@ -1,9 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase-server'
+import { createClient as createAnonClient } from '@supabase/supabase-js'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import WishlistButton from './WishlistButton'
 
-const supabase = createClient(
+const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
@@ -11,17 +13,21 @@ const supabase = createClient(
 export default async function EditionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const { data: edition } = await supabase
-    .from('edition')
-    .select(`
-      *,
-      book:book_id (*),
-      source:source_id (*)
-    `)
-    .eq('id', id)
-    .single()
+  const [{ data: edition }, supabase] = await Promise.all([
+    anonSupabase.from('edition').select(`*, book:book_id (*), source:source_id (*)`).eq('id', id).single(),
+    createClient(),
+  ])
 
   if (!edition) notFound()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  let isWishlisted = false
+  if (user) {
+    const { data } = await supabase.from('user_wishlist')
+      .select('edition_id').eq('user_id', user.id).eq('edition_id', id).maybeSingle()
+    isWishlisted = !!data
+  }
 
   const book = edition.book as Record<string, string>
   const source = edition.source as Record<string, string> | null
@@ -97,6 +103,15 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
           )}
 
           <h2 className="text-lg font-semibold text-white mb-4">{edition.edition_name}</h2>
+
+          {/* Wishlist button */}
+          <div className="mb-6">
+            <WishlistButton
+              editionId={id}
+              initialWishlisted={isWishlisted}
+              isLoggedIn={!!user}
+            />
+          </div>
 
           {/* Price card */}
           {(hasValue || edition.original_retail_price) && (
