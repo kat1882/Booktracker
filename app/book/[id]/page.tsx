@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase-server'
 import Image from 'next/image'
 import Link from 'next/link'
 import AddToShelfButton from './AddToShelfButton'
+import PublishedEditionsList, { type PublishedEditionData } from './PublishedEditionsList'
 
 interface GBVolumeInfo {
   title: string
@@ -210,6 +211,20 @@ export default async function BookPage({ params, searchParams }: { params: Promi
     page_count: pageCount,
   }
 
+  // Serialize published editions for the client component
+  const serializedEditions: PublishedEditionData[] = publishedEditions.map(edition => ({
+    isbn: edition.isbn_13?.[0] ?? edition.isbn_10?.[0] ?? null,
+    format: formatFormat(edition.physical_format),
+    publisher: edition.publishers?.[0] ?? null,
+    year: edition.publish_date?.match(/\d{4}/)?.[0] ?? null,
+    coverUrl: edition.covers?.[0]
+      ? `https://covers.openlibrary.org/b/id/${edition.covers[0]}-S.jpg`
+      : null,
+    pages: edition.number_of_pages ?? null,
+    language: formatLanguage(edition.languages?.[0]?.key),
+    title: edition.title ?? null,
+  }))
+
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
       <Link href={backHref} className="text-sm text-gray-400 hover:text-white mb-6 inline-block transition-colors">
@@ -295,48 +310,13 @@ export default async function BookPage({ params, searchParams }: { params: Promi
         <h2 className="text-xl font-bold text-white mb-1">Published Editions</h2>
         <p className="text-sm text-gray-500 mb-5">All known printings, formats, and ISBN variants</p>
 
-        {publishedEditions.length > 0 ? (
-          <div className="flex flex-col divide-y divide-gray-800 border border-gray-800 rounded-xl overflow-hidden">
-            {publishedEditions.map((edition, i) => {
-              const isbn = edition.isbn_13?.[0] ?? edition.isbn_10?.[0]
-              const cover = edition.covers?.[0]
-                ? `https://covers.openlibrary.org/b/id/${edition.covers[0]}-S.jpg`
-                : null
-              const format = formatFormat(edition.physical_format)
-              const lang = formatLanguage(edition.languages?.[0]?.key)
-              const publisher = edition.publishers?.[0]
-              const year = edition.publish_date?.match(/\d{4}/)?.[0]
-
-              return (
-                <div key={i} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-900/50 transition-colors">
-                  {/* Small cover */}
-                  <div className="w-8 h-12 relative bg-gray-800 rounded overflow-hidden shrink-0">
-                    {cover ? (
-                      <Image src={cover} alt={edition.title ?? title} fill className="object-cover" sizes="32px" unoptimized />
-                    ) : (
-                      <div className="absolute inset-0 bg-gray-800" />
-                    )}
-                  </div>
-
-                  {/* Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                      {format && <span className="text-sm font-medium text-white">{format}</span>}
-                      {publisher && <span className="text-sm text-gray-400">{publisher}</span>}
-                      {year && <span className="text-sm text-gray-500">{year}</span>}
-                      {lang && lang !== 'English' && (
-                        <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">{lang}</span>
-                      )}
-                      {edition.number_of_pages && (
-                        <span className="text-xs text-gray-600">{edition.number_of_pages} pages</span>
-                      )}
-                    </div>
-                    {isbn && <p className="text-xs text-gray-600 mt-0.5 font-mono">ISBN: {isbn}</p>}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+        {serializedEditions.length > 0 ? (
+          <PublishedEditionsList
+            editions={serializedEditions}
+            bookId={dbBook?.id ?? null}
+            bookMeta={bookPayload}
+            isLoggedIn={!!user}
+          />
         ) : (
           <div className="border border-dashed border-gray-800 rounded-xl p-8 text-center text-gray-600 text-sm">
             No edition data found for this book.
