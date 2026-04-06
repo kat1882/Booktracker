@@ -10,6 +10,10 @@ interface ShelfEntry {
   rating: number | null
   date_read: string | null
   date_started: string | null
+  condition: string | null
+  purchase_price: number | null
+  for_sale: boolean
+  asking_price: number | null
   book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
   edition: { id: string; cover_image?: string; edition_name?: string; source?: { name: string } } | null
 }

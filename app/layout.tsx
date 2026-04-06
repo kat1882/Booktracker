@@ -24,8 +24,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </Link>
           <nav className="flex gap-5 items-center text-sm text-gray-400">
             <Link href="/search" className="hover:text-white transition-colors">Search</Link>
-            <Link href="/browse" className="hover:text-white transition-colors">Browse Editions</Link>
-            <Link href="/submit" className="hover:text-white transition-colors">Submit Edition</Link>
+            <Link href="/browse" className="hover:text-white transition-colors">Browse</Link>
+            <Link href="/trending" className="hover:text-white transition-colors">Trending</Link>
+            <Link href="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
+            <Link href="/submit" className="hover:text-white transition-colors">Submit</Link>
             {user ? (
               <>
                 <Link href="/shelves" className="hover:text-white transition-colors">My Shelves</Link>

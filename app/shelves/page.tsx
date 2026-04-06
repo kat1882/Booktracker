@@ -11,7 +11,7 @@ export default async function ShelvesPage() {
   const { data: entries } = await supabase
     .from('user_collection')
     .select(`
-      id, reading_status, rating, date_read, date_started,
+      id, reading_status, rating, date_read, date_started, condition, purchase_price, for_sale, asking_price,
       book:book_id ( id, title, author, cover_ol_id, open_library_id, google_books_id ),
       edition:edition_id ( id, edition_name, cover_image, estimated_value, original_retail_price, source:source_id ( name ) )
     `)
@@ -24,6 +24,10 @@ export default async function ShelvesPage() {
     rating: number | null
     date_read: string | null
     date_started: string | null
+    condition: string | null
+    purchase_price: number | null
+    for_sale: boolean
+    asking_price: number | null
     book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
     edition: { id: string; cover_image?: string; edition_name?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
   }[]
