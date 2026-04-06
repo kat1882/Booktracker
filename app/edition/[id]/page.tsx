@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import WishlistButton from './WishlistButton'
+import AddEditionToShelfButton from './AddEditionToShelfButton'
 
 const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,10 +24,14 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
   const { data: { user } } = await supabase.auth.getUser()
 
   let isWishlisted = false
+  let shelfStatus: string | null = null
   if (user) {
-    const { data } = await supabase.from('user_wishlist')
-      .select('edition_id').eq('user_id', user.id).eq('edition_id', id).maybeSingle()
-    isWishlisted = !!data
+    const [{ data: wishlistData }, { data: shelfData }] = await Promise.all([
+      supabase.from('user_wishlist').select('edition_id').eq('user_id', user.id).eq('edition_id', id).maybeSingle(),
+      supabase.from('user_collection').select('reading_status').eq('user_id', user.id).eq('edition_id', id).maybeSingle(),
+    ])
+    isWishlisted = !!wishlistData
+    shelfStatus = shelfData?.reading_status ?? null
   }
 
   // Other editions of the same book
@@ -113,8 +118,14 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
 
           <h2 className="text-lg font-semibold text-white mb-4">{edition.edition_name}</h2>
 
-          {/* Wishlist button */}
-          <div className="mb-6">
+          {/* Shelf + wishlist buttons */}
+          <div className="mb-6 flex flex-col gap-3">
+            <AddEditionToShelfButton
+              editionId={id}
+              bookId={edition.book_id}
+              initialStatus={shelfStatus}
+              isLoggedIn={!!user}
+            />
             <WishlistButton
               editionId={id}
               initialWishlisted={isWishlisted}
