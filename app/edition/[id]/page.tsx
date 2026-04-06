@@ -29,6 +29,15 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
     isWishlisted = !!data
   }
 
+  // Other editions of the same book
+  const { data: otherEditions } = await anonSupabase
+    .from('edition')
+    .select('id, edition_name, cover_image, edition_type, estimated_value, original_retail_price, source:source_id ( name )')
+    .eq('book_id', edition.book_id)
+    .neq('id', id)
+    .order('edition_name')
+    .limit(20)
+
   const book = edition.book as Record<string, string>
   const source = edition.source as Record<string, string> | null
 
@@ -163,6 +172,40 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
           )}
         </div>
       </div>
+
+      {/* Other editions of this book */}
+      {otherEditions && otherEditions.length > 0 && (
+        <div className="mt-10 border-t border-gray-800 pt-8">
+          <h2 className="text-lg font-bold text-white mb-1">More editions of {book.title}</h2>
+          <p className="text-sm text-gray-500 mb-5">{otherEditions.length} other special edition{otherEditions.length !== 1 ? 's' : ''} in the database</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {otherEditions.map((ed) => {
+              const edSource = ed.source as unknown as { name: string } | null
+              const edPrice = ed.estimated_value ?? ed.original_retail_price
+              return (
+                <Link
+                  key={ed.id}
+                  href={`/edition/${ed.id}`}
+                  className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors"
+                >
+                  <div className="aspect-[2/3] relative bg-gray-800">
+                    {ed.cover_image ? (
+                      <Image src={ed.cover_image} alt={ed.edition_name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="200px" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-2">{ed.edition_name}</div>
+                    )}
+                  </div>
+                  <div className="p-3">
+                    {edSource && <p className="text-xs text-violet-400 font-medium">{edSource.name}</p>}
+                    <p className="text-xs text-gray-300 mt-0.5 line-clamp-2">{ed.edition_name}</p>
+                    {edPrice && <p className="text-xs text-emerald-400 mt-1">${Number(edPrice).toFixed(0)}</p>}
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
