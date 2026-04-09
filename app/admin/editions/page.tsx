@@ -41,7 +41,7 @@ export default async function AdminEditionsPage({ searchParams }: { searchParams
       </div>
 
       <AdminEditionSearch
-        initialEditions={(editions ?? []) as Parameters<typeof AdminEditionSearch>[0]['initialEditions']}
+        initialEditions={(editions ?? []) as unknown as Parameters<typeof AdminEditionSearch>[0]['initialEditions']}
         sources={(sources ?? []) as { id: string; name: string }[]}
         initialQuery={search}
       />
