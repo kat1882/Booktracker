@@ -4,6 +4,9 @@ import { useState } from 'react'
 import ShelfCard from './ShelfCard'
 import Link from 'next/link'
 
+const INITIAL_SHOW = 30
+const SHOW_MORE_BY = 30
+
 interface ShelfEntry {
   id: string
   reading_status: string
@@ -45,6 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function ShelvesClient({ initialEntries, stats }: { initialEntries: ShelfEntry[]; stats: Stats }) {
   const [entries, setEntries] = useState<ShelfEntry[]>(initialEntries)
   const [activeShelf, setActiveShelf] = useState<string>('all')
+  const [shownCounts, setShownCounts] = useState<Record<string, number>>({})
 
   async function handleUpdate(id: string, updates: Record<string, unknown>) {
     const res = await fetch(`/api/shelf/${id}`, {
@@ -142,6 +146,9 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
       {(activeShelf === 'all' ? shelves : [activeShelf]).map(status => {
         const shelf = grouped[status]
         if (!shelf?.length) return null
+        const shown = shownCounts[status] ?? INITIAL_SHOW
+        const visible = shelf.slice(0, shown)
+        const hasMore = shelf.length > shown
         return (
           <section key={status} className="mb-10">
             <div className="flex items-center gap-2 mb-4">
@@ -151,7 +158,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
               <span className="text-sm text-gray-600">{shelf.length}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {shelf.map(entry => (
+              {visible.map(entry => (
                 <ShelfCard
                   key={entry.id}
                   entry={entry}
@@ -160,6 +167,14 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
                 />
               ))}
             </div>
+            {hasMore && (
+              <button
+                onClick={() => setShownCounts(prev => ({ ...prev, [status]: (prev[status] ?? INITIAL_SHOW) + SHOW_MORE_BY }))}
+                className="mt-4 w-full py-2.5 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-colors"
+              >
+                Show more ({shelf.length - shown} remaining)
+              </button>
+            )}
           </section>
         )
       })}

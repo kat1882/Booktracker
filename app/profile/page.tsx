@@ -110,9 +110,14 @@ export default async function ProfilePage() {
             <p className="text-sm text-gray-400">Est. collection value</p>
             <p className="text-3xl font-bold text-emerald-400">${collectionValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
           </div>
-          <Link href="/marketplace" className="text-xs text-amber-400 hover:text-amber-300 bg-amber-900/20 border border-amber-800/30 px-3 py-1.5 rounded-lg">
-            Marketplace →
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/collection" className="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-900/20 border border-emerald-800/30 px-3 py-1.5 rounded-lg">
+              Value dashboard →
+            </Link>
+            <Link href="/marketplace" className="text-xs text-amber-400 hover:text-amber-300 bg-amber-900/20 border border-amber-800/30 px-3 py-1.5 rounded-lg">
+              Marketplace →
+            </Link>
+          </div>
         </div>
       )}
 

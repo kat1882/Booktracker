@@ -8,18 +8,21 @@ const supabase = createClient(
 )
 
 const GENRES = ['fantasy', 'romance', 'thriller', 'horror', 'sci-fi', 'historical', 'contemporary', 'ya']
+const PAGE_SIZE = 60
 
 interface SearchParams {
   q?: string
   genre?: string
   source?: string
+  page?: string
 }
 
-function buildHref(params: { q?: string; genre?: string; source?: string }) {
+function buildHref(params: { q?: string; genre?: string; source?: string; page?: number }) {
   const p = new URLSearchParams()
   if (params.q) p.set('q', params.q)
   if (params.genre) p.set('genre', params.genre)
   if (params.source) p.set('source', params.source)
+  if (params.page && params.page > 1) p.set('page', String(params.page))
   const s = p.toString()
   return `/browse${s ? `?${s}` : ''}`
 }
@@ -29,8 +32,11 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   const search = params.q?.trim() ?? ''
   const genre = params.genre ?? ''
   const sourceName = params.source ?? ''
+  const page = Math.max(1, parseInt(params.page ?? '1') || 1)
+  const from = (page - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
 
-  // Fetch all sources for filter chips
+  // Fetch sources for filter chips
   const { data: sources } = await supabase
     .from('source')
     .select('id, name, type')
@@ -43,29 +49,40 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   let query = supabase
     .from('edition')
     .select(`
-      id, edition_name, cover_image, original_retail_price, estimated_value, release_month, edition_type,
+      id, edition_name, cover_image, original_retail_price, estimated_value, edition_type,
       book:book_id ( title, author, genre ),
       source:source_id ( name )
-    `)
+    `, { count: 'exact' })
     .order('edition_name')
-    .limit(200)
+    .range(from, to)
 
   if (search) {
-    query = query.or(`edition_name.ilike.%${search}%,book.title.ilike.%${search}%,book.author.ilike.%${search}%`)
-  }
-  if (genre) {
-    query = query.eq('book.genre', genre)
+    query = query.ilike('edition_name', `%${search}%`)
   }
   if (sourceId) {
     query = query.eq('source_id', sourceId)
   }
 
-  const { data: editions } = await query
+  const { data: editions, count } = await query
 
+  // Genre filter applied client-side since it's on a joined table
   const filtered = (editions ?? []).filter(e => {
-    if (genre && (e.book as { genre?: string })?.genre !== genre) return false
+    if (genre && (e.book as { genre?: string } | null)?.genre !== genre) return false
     return true
   })
+
+  const totalCount = count ?? 0
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+
+  // Page window: show up to 7 page buttons centred on current page
+  const pageWindow = () => {
+    const delta = 3
+    const range: number[] = []
+    for (let i = Math.max(1, page - delta); i <= Math.min(totalPages, page + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -74,7 +91,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         <input
           name="q"
           defaultValue={search}
-          placeholder="Search by title, author, or edition..."
+          placeholder="Search by title, edition name..."
           className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
         />
         {genre && <input type="hidden" name="genre" value={genre} />}
@@ -124,10 +141,11 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
 
       {/* Results count */}
       <p className="text-sm text-gray-500 mb-6">
-        {filtered.length} edition{filtered.length !== 1 ? 's' : ''}
+        {totalCount.toLocaleString()} edition{totalCount !== 1 ? 's' : ''}
         {search && <> matching &ldquo;{search}&rdquo;</>}
         {genre && <> in {genre}</>}
         {sourceName && <> from <span className="text-pink-400">{sourceName}</span></>}
+        {totalPages > 1 && <span className="ml-2 text-gray-600">— page {page} of {totalPages}</span>}
       </p>
 
       {/* Grid */}
@@ -160,12 +178,8 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
               <div className="p-3 flex flex-col gap-1">
                 <p className="text-xs font-semibold text-white leading-tight line-clamp-2">{book.title}</p>
                 <p className="text-xs text-gray-400 line-clamp-1">{book.author}</p>
-                {source && (
-                  <span className="text-xs text-violet-400 mt-auto">{source.name}</span>
-                )}
-                {price && (
-                  <p className="text-xs text-gray-500">${Number(price).toFixed(0)}</p>
-                )}
+                {source && <span className="text-xs text-violet-400 mt-auto">{source.name}</span>}
+                {price && <p className="text-xs text-gray-500">${Number(price).toFixed(0)}</p>}
               </div>
             </Link>
           )
@@ -175,6 +189,53 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
       {filtered.length === 0 && (
         <div className="text-center py-24 text-gray-500">
           No editions found. Try a different search or filter.
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1 mt-10">
+          {page > 1 && (
+            <Link
+              href={buildHref({ q: search || undefined, genre: genre || undefined, source: sourceName || undefined, page: page - 1 })}
+              className="px-3 py-2 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors"
+            >
+              ←
+            </Link>
+          )}
+
+          {page > 4 && (
+            <>
+              <Link href={buildHref({ q: search || undefined, genre: genre || undefined, source: sourceName || undefined, page: 1 })} className="px-3 py-2 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors">1</Link>
+              {page > 5 && <span className="px-2 text-gray-600">…</span>}
+            </>
+          )}
+
+          {pageWindow().map(p => (
+            <Link
+              key={p}
+              href={buildHref({ q: search || undefined, genre: genre || undefined, source: sourceName || undefined, page: p })}
+              className={`px-3 py-2 text-sm rounded-lg border transition-colors ${p === page ? 'bg-violet-600 border-violet-500 text-white' : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white'}`}
+            >
+              {p}
+            </Link>
+          ))}
+
+          {page < totalPages - 3 && (
+            <>
+              {page < totalPages - 4 && <span className="px-2 text-gray-600">…</span>}
+              <Link href={buildHref({ q: search || undefined, genre: genre || undefined, source: sourceName || undefined, page: totalPages })} className="px-3 py-2 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors">{totalPages}</Link>
+            </>
+          )}
+
+          {page < totalPages && (
+            <Link
+              href={buildHref({ q: search || undefined, genre: genre || undefined, source: sourceName || undefined, page: page + 1 })}
+              className="px-3 py-2 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-lg transition-colors"
+            >
+              →
+            </Link>
+          )}
         </div>
       )}
     </div>

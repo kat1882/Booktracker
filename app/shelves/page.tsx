@@ -56,12 +56,21 @@ export default async function ShelvesPage() {
     <div className="max-w-5xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-white">My Shelves</h1>
-        <Link
-          href="/search"
-          className="bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Add Book
-        </Link>
+        <div className="flex gap-2">
+          <a
+            href="/api/export/collection"
+            download
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            ↓ Export CSV
+          </a>
+          <Link
+            href="/search"
+            className="bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            + Add Book
+          </Link>
+        </div>
       </div>
 
       <ShelvesClient initialEntries={all} stats={stats} />

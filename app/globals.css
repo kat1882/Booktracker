@@ -1,8 +1,50 @@
 @import "tailwindcss";
 
+/* Class-based dark mode for next-themes */
+@variant dark (&:where(.dark, .dark *));
+
+/*
+  Light mode (default): flip the Tailwind gray scale so the app looks light.
+  Dark mode (.dark class): restore the original Tailwind v4 gray values.
+
+  This lets us add dark: variants normally while keeping the existing component
+  code working — the gray-* classes just mean different things per theme.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Flip grays: gray-950 → near-white, gray-100 → near-black */
+  --color-gray-950: oklch(0.985 0.002 247.839);   /* was gray-50  */
+  --color-gray-900: oklch(0.967 0.003 264.542);   /* was gray-100 */
+  --color-gray-800: oklch(0.928 0.006 264.531);   /* was gray-200 */
+  --color-gray-700: oklch(0.872 0.010 258.338);   /* was gray-300 */
+  --color-gray-600: oklch(0.707 0.022 261.325);   /* was gray-400 */
+  --color-gray-500: oklch(0.551 0.027 264.364);   /* unchanged    */
+  --color-gray-400: oklch(0.446 0.030 256.802);   /* was gray-600 */
+  --color-gray-300: oklch(0.373 0.034 259.733);   /* was gray-700 */
+  --color-gray-200: oklch(0.269 0.017 261.325);   /* was gray-800 */
+  --color-gray-100: oklch(0.210 0.034 264.665);   /* was gray-900 */
+  /* white → dark so text-white reads as dark text in light mode */
+  --color-white: oklch(0.130 0.028 261.692);      /* was gray-950 */
+
+  --background: oklch(0.985 0.002 247.839);
+  --foreground: oklch(0.130 0.028 261.692);
+}
+
+.dark {
+  /* Restore original Tailwind v4 gray values */
+  --color-gray-950: oklch(0.130 0.028 261.692);
+  --color-gray-900: oklch(0.210 0.034 264.665);
+  --color-gray-800: oklch(0.269 0.017 261.325);
+  --color-gray-700: oklch(0.373 0.034 259.733);
+  --color-gray-600: oklch(0.446 0.030 256.802);
+  --color-gray-500: oklch(0.551 0.027 264.364);
+  --color-gray-400: oklch(0.707 0.022 261.325);
+  --color-gray-300: oklch(0.872 0.010 258.338);
+  --color-gray-200: oklch(0.928 0.006 264.531);
+  --color-gray-100: oklch(0.967 0.003 264.542);
+  --color-white: oklch(1 0 0);
+
+  --background: oklch(0.130 0.028 261.692);
+  --foreground: oklch(0.985 0.002 247.839);
 }
 
 @theme inline {
@@ -10,13 +52,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

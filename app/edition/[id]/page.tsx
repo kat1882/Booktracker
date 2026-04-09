@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import WishlistButton from './WishlistButton'
 import AddEditionToShelfButton from './AddEditionToShelfButton'
+import EditionReviews from './EditionReviews'
+import PriceChart from './PriceChart'
+import AddToListButton from './AddToListButton'
 
 const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,20 +37,77 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
     shelfStatus = shelfData?.reading_status ?? null
   }
 
-  // Other editions of the same book
-  const { data: otherEditions } = await anonSupabase
-    .from('edition')
-    .select('id, edition_name, cover_image, edition_type, estimated_value, original_retail_price, source:source_id ( name )')
-    .eq('book_id', edition.book_id)
-    .neq('id', id)
-    .order('edition_name')
-    .limit(20)
-
   const book = edition.book as Record<string, string>
   const source = edition.source as Record<string, string> | null
 
+  // Fetch all related data in parallel
+  const [
+    { data: priceHistory },
+    { data: reviewsRaw },
+    { data: otherEditions },
+    { data: sameSource },
+    { data: sameType },
+    { data: sameAuthor },
+  ] = await Promise.all([
+    anonSupabase
+      .from('edition_price_history')
+      .select('price, recorded_at')
+      .eq('edition_id', id)
+      .order('recorded_at', { ascending: true })
+      .limit(100),
+
+    anonSupabase
+      .from('edition_review')
+      .select('id, body, overall_rating, physical_quality, extras_quality, value_for_money, created_at, user_id')
+      .eq('edition_id', id)
+      .order('created_at', { ascending: false })
+      .limit(50),
+
+    // Other editions of same book
+    anonSupabase
+      .from('edition')
+      .select('id, edition_name, cover_image, edition_type, estimated_value, original_retail_price, source:source_id(name)')
+      .eq('book_id', edition.book_id)
+      .neq('id', id)
+      .order('edition_name')
+      .limit(20),
+
+    // Similar: same source (different books)
+    source?.id ? anonSupabase
+      .from('edition')
+      .select('id, edition_name, cover_image, estimated_value, book:book_id(title, author)')
+      .eq('source_id', source.id)
+      .neq('book_id', edition.book_id)
+      .not('cover_image', 'is', null)
+      .limit(8) : Promise.resolve({ data: [] }),
+
+    // Similar: same edition type
+    edition.edition_type ? anonSupabase
+      .from('edition')
+      .select('id, edition_name, cover_image, estimated_value, book:book_id(title, author), source:source_id(name)')
+      .eq('edition_type', edition.edition_type)
+      .neq('book_id', edition.book_id)
+      .not('cover_image', 'is', null)
+      .limit(8) : Promise.resolve({ data: [] }),
+
+    // Similar: same author (different books)
+    book.author ? anonSupabase
+      .from('book')
+      .select('id, title, edition:edition(id, cover_image, edition_name, estimated_value)')
+      .eq('author', book.author)
+      .neq('id', edition.book_id)
+      .limit(8) : Promise.resolve({ data: [] }),
+  ])
+
+  const reviewUserIds = (reviewsRaw ?? []).map(r => r.user_id)
+  const { data: reviewProfiles } = reviewUserIds.length > 0
+    ? await anonSupabase.from('user_profile').select('id, username').in('id', reviewUserIds)
+    : { data: [] }
+  const profileMap = Object.fromEntries((reviewProfiles ?? []).map(p => [p.id, p.username]))
+  const reviews = (reviewsRaw ?? []).map(r => ({ ...r, username: profileMap[r.user_id] ?? 'Unknown' }))
+
   const details = [
-    { label: 'Edition Type', value: edition.edition_type?.replace('_', ' ') },
+    { label: 'Edition Type', value: edition.edition_type?.replace(/_/g, ' ') },
     { label: 'Source', value: source?.name },
     { label: 'Release', value: edition.release_month },
     { label: 'Publisher', value: edition.publisher },
@@ -70,6 +130,12 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
   const priceDiff = hasValue && edition.original_retail_price
     ? ((edition.estimated_value - edition.original_retail_price) / edition.original_retail_price) * 100
     : null
+
+  // Build "same author" editions list from the book join
+  const authorEditions = (sameAuthor ?? []).flatMap((bk: Record<string, unknown>) => {
+    const eds = bk.edition as unknown as { id: string; cover_image: string | null; edition_name: string; estimated_value: number | null }[]
+    return (eds ?? []).slice(0, 1).map(e => ({ ...e, bookTitle: bk.title as string }))
+  }).slice(0, 8)
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -118,7 +184,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
 
           <h2 className="text-lg font-semibold text-white mb-4">{edition.edition_name}</h2>
 
-          {/* Shelf + wishlist buttons */}
+          {/* Shelf + wishlist + list buttons */}
           <div className="mb-6 flex flex-col gap-3">
             <AddEditionToShelfButton
               editionId={id}
@@ -131,6 +197,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
               initialWishlisted={isWishlisted}
               isLoggedIn={!!user}
             />
+            <AddToListButton editionId={id} isLoggedIn={!!user} />
           </div>
 
           {/* Price card */}
@@ -165,6 +232,13 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
             </div>
           )}
 
+          {/* Price history chart */}
+          {priceHistory && priceHistory.length > 0 && (
+            <div className="mb-6">
+              <PriceChart points={priceHistory.map(p => ({ price: Number(p.price), recorded_at: p.recorded_at }))} />
+            </div>
+          )}
+
           {/* Detail grid */}
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 mb-6">
             {details.map(d => (
@@ -184,39 +258,152 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      {/* Reviews */}
+      <EditionReviews editionId={id} isLoggedIn={!!user} initialReviews={reviews} />
+
       {/* Other editions of this book */}
       {otherEditions && otherEditions.length > 0 && (
         <div className="mt-10 border-t border-gray-800 pt-8">
           <h2 className="text-lg font-bold text-white mb-1">More editions of {book.title}</h2>
-          <p className="text-sm text-gray-500 mb-5">{otherEditions.length} other special edition{otherEditions.length !== 1 ? 's' : ''} in the database</p>
+          <p className="text-sm text-gray-500 mb-5">
+            {otherEditions.length} other special edition{otherEditions.length !== 1 ? 's' : ''} · Select one to compare
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {otherEditions.map((ed) => {
               const edSource = ed.source as unknown as { name: string } | null
               const edPrice = ed.estimated_value ?? ed.original_retail_price
               return (
-                <Link
-                  key={ed.id}
-                  href={`/edition/${ed.id}`}
-                  className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors"
-                >
-                  <div className="aspect-[2/3] relative bg-gray-800">
-                    {ed.cover_image ? (
-                      <Image src={ed.cover_image} alt={ed.edition_name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="200px" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-2">{ed.edition_name}</div>
-                    )}
+                <div key={ed.id} className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors flex flex-col">
+                  <Link href={`/edition/${ed.id}`} className="block">
+                    <div className="aspect-[2/3] relative bg-gray-800">
+                      {ed.cover_image ? (
+                        <Image src={ed.cover_image} alt={ed.edition_name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="200px" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-2">{ed.edition_name}</div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      {edSource && <p className="text-xs text-violet-400 font-medium">{edSource.name}</p>}
+                      <p className="text-xs text-gray-300 mt-0.5 line-clamp-2">{ed.edition_name}</p>
+                      {edPrice && <p className="text-xs text-emerald-400 mt-1">${Number(edPrice).toFixed(0)}</p>}
+                    </div>
+                  </Link>
+                  {/* Compare link */}
+                  <div className="px-3 pb-3 mt-auto">
+                    <Link
+                      href={`/compare?a=${id}&b=${ed.id}`}
+                      className="block w-full text-center text-xs text-gray-500 hover:text-violet-400 border border-gray-800 hover:border-violet-600 rounded-lg py-1.5 transition-colors"
+                    >
+                      ⚖️ Compare
+                    </Link>
                   </div>
-                  <div className="p-3">
-                    {edSource && <p className="text-xs text-violet-400 font-medium">{edSource.name}</p>}
-                    <p className="text-xs text-gray-300 mt-0.5 line-clamp-2">{ed.edition_name}</p>
-                    {edPrice && <p className="text-xs text-emerald-400 mt-1">${Number(edPrice).toFixed(0)}</p>}
-                  </div>
-                </Link>
+                </div>
               )
             })}
           </div>
         </div>
       )}
+
+      {/* Similar editions */}
+      {(sameSource?.length || sameType?.length || authorEditions.length) ? (
+        <div className="mt-10 border-t border-gray-800 pt-8 space-y-10">
+          <h2 className="text-lg font-bold text-white -mb-4">You might also like</h2>
+
+          {/* Same source */}
+          {source && sameSource && sameSource.length > 0 && (
+            <SimilarRow
+              label={`More from ${source.name}`}
+              editions={sameSource.map(e => ({
+                id: e.id,
+                cover_image: e.cover_image,
+                edition_name: e.edition_name,
+                estimated_value: e.estimated_value,
+                subtitle: (e.book as unknown as { title: string; author: string })?.title ?? '',
+              }))}
+            />
+          )}
+
+          {/* Same edition type */}
+          {edition.edition_type && sameType && sameType.length > 0 && (
+            <SimilarRow
+              label={`More ${edition.edition_type.replace(/_/g, ' ')} editions`}
+              editions={sameType.map(e => ({
+                id: e.id,
+                cover_image: e.cover_image,
+                edition_name: e.edition_name,
+                estimated_value: e.estimated_value,
+                subtitle: (e.book as unknown as { title: string })?.title ?? '',
+                tag: (e.source as unknown as { name: string })?.name,
+              }))}
+            />
+          )}
+
+          {/* Same author */}
+          {authorEditions.length > 0 && (
+            <SimilarRow
+              label={`More by ${book.author}`}
+              editions={authorEditions.map(e => ({
+                id: e.id,
+                cover_image: e.cover_image,
+                edition_name: e.edition_name,
+                estimated_value: e.estimated_value,
+                subtitle: e.bookTitle,
+              }))}
+            />
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function SimilarRow({
+  label,
+  editions,
+}: {
+  label: string
+  editions: {
+    id: string
+    cover_image: string | null
+    edition_name: string
+    estimated_value: number | null
+    subtitle?: string
+    tag?: string
+  }[]
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">{label}</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3">
+        {editions.map(e => (
+          <Link
+            key={e.id}
+            href={`/edition/${e.id}`}
+            className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors"
+          >
+            <div className="aspect-[2/3] relative bg-gray-800">
+              {e.cover_image ? (
+                <Image
+                  src={e.cover_image}
+                  alt={e.edition_name}
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  sizes="150px"
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-2xl">📚</div>
+              )}
+            </div>
+            <div className="p-2">
+              {e.tag && <p className="text-xs text-violet-400 font-medium leading-tight truncate">{e.tag}</p>}
+              {e.subtitle && <p className="text-xs text-gray-400 leading-tight line-clamp-2 mt-0.5">{e.subtitle}</p>}
+              {e.estimated_value && (
+                <p className="text-xs text-emerald-400 mt-1">${Number(e.estimated_value).toFixed(0)}</p>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }
