@@ -168,7 +168,9 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
               <span className="text-xs text-violet-400 font-medium uppercase tracking-wider">{source.name}</span>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1">{book.title}</h1>
+          <Link href={`/book/${edition.book_id}`} className="text-2xl font-bold text-white mb-1 hover:text-violet-300 transition-colors block">
+            {book.title}
+          </Link>
           <p className="text-gray-400 mb-1">by {book.author}</p>
           {book.series_name && (
             <p className="text-sm text-gray-500 mb-4">{book.series_name}{book.series_number ? ` #${book.series_number}` : ''}</p>

@@ -50,6 +50,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
     .from('edition')
     .select(`
       id, edition_name, cover_image, original_retail_price, estimated_value, edition_type,
+      book_id,
       book:book_id ( title, author, genre ),
       source:source_id ( name )
     `, { count: 'exact' })
@@ -155,33 +156,33 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
           const source = edition.source as unknown as { name: string } | null
           const price = edition.estimated_value ?? edition.original_retail_price
           return (
-            <Link
-              key={edition.id}
-              href={`/edition/${edition.id}`}
-              className="group flex flex-col bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-violet-500 transition-colors"
-            >
-              <div className="aspect-[2/3] relative bg-gray-800">
-                {edition.cover_image ? (
-                  <Image
-                    src={edition.cover_image}
-                    alt={book.title}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                    sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-2">
-                    No image
-                  </div>
-                )}
-              </div>
+            <div key={edition.id} className="group flex flex-col bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-violet-500 transition-colors">
+              <Link href={`/edition/${edition.id}`} className="block">
+                <div className="aspect-[2/3] relative bg-gray-800">
+                  {edition.cover_image ? (
+                    <Image
+                      src={edition.cover_image}
+                      alt={book.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-2">
+                      No image
+                    </div>
+                  )}
+                </div>
+              </Link>
               <div className="p-3 flex flex-col gap-1">
-                <p className="text-xs font-semibold text-white leading-tight line-clamp-2">{book.title}</p>
+                <Link href={`/book/${edition.book_id}`} className="text-xs font-semibold text-white leading-tight line-clamp-2 hover:text-violet-300 transition-colors">
+                  {book.title}
+                </Link>
                 <p className="text-xs text-gray-400 line-clamp-1">{book.author}</p>
                 {source && <span className="text-xs text-violet-400 mt-auto">{source.name}</span>}
                 {price && <p className="text-xs text-gray-500">${Number(price).toFixed(0)}</p>}
               </div>
-            </Link>
+            </div>
           )
         })}
       </div>

@@ -7,7 +7,7 @@
 # Env required: APIFY_API_KEY
 
 set -e
-TOKEN="${APIFY_API_KEY:-apify_api_UihOQeZTemmA1TmmqGiqvwps87jae40A2nP2}"
+TOKEN="${APIFY_API_KEY:?Error: APIFY_API_KEY env var is required}"
 
 wait_for_run() {
   local RUN=$1

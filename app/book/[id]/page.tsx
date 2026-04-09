@@ -101,15 +101,19 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   const { data: { user } } = await supabase.auth.getUser()
 
   const isGoogleBooks = id.startsWith('gb_')
+  // UUID format: 8-4-4-4-12 hex chars
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   const gbId = isGoogleBooks ? id.slice(3) : null
-  const olId = !isGoogleBooks ? id : null
+  const olId = !isGoogleBooks && !isUUID ? id : null
 
   const editionSelect = '*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name))'
 
-  // Look up book in our DB by external ID first
-  let { data: dbBook } = gbId
-    ? await supabase.from('book').select(editionSelect).eq('google_books_id', gbId).single()
-    : await supabase.from('book').select(editionSelect).eq('open_library_id', olId!).single()
+  // Look up book in our DB — by UUID, Google Books ID, or Open Library ID
+  let { data: dbBook } = isUUID
+    ? await supabase.from('book').select(editionSelect).eq('id', id).single()
+    : gbId
+      ? await supabase.from('book').select(editionSelect).eq('google_books_id', gbId).single()
+      : await supabase.from('book').select(editionSelect).eq('open_library_id', olId!).single()
 
   // If no editions found, try a title-based fallback (catches Illumicrate books not yet linked)
   if (!dbBook || (dbBook.editions as unknown[]).length === 0) {
@@ -140,7 +144,10 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   let publishedYear: string | null = null
   let resolvedOlId: string | null = dbBook?.open_library_id ?? (isGoogleBooks ? null : olId)
 
-  if (gbId) {
+  if (isUUID) {
+    // All data comes from our DB — no external API needed
+    resolvedOlId = dbBook?.open_library_id ?? null
+  } else if (gbId) {
     const gbInfo = await fetchGoogleBook(gbId)
     if (gbInfo) {
       title = gbInfo.title ?? title
