@@ -1,13 +1,15 @@
 import { createClient } from '@/lib/supabase-server'
-import { createClient as adminClient } from '@supabase/supabase-js'
+import { createClient as makeClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 const ADMIN_USER_ID = 'd7e5e026-425b-4824-85a5-88d3412b95d3'
 
-const admin = adminClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function adminClient() {
+  return makeClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 async function checkAdmin() {
   const supabase = await createClient()
@@ -16,6 +18,7 @@ async function checkAdmin() {
 }
 
 export async function GET() {
+  const admin = adminClient()
   const { data } = await admin
     .from('release_calendar')
     .select('*, source:source_id(id, name)')
@@ -27,6 +30,7 @@ export async function GET() {
 export async function POST(req: Request) {
   if (!await checkAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const admin = adminClient()
   const body = await req.json()
   const { data, error } = await admin
     .from('release_calendar')
@@ -50,6 +54,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   if (!await checkAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const admin = adminClient()
   const body = await req.json()
   const { id, ...fields } = body
   const allowed = ['book_title','author','release_date','edition_type','notes','cover_image_url','edition_id','source_id']
@@ -62,6 +67,7 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   if (!await checkAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const admin = adminClient()
   const { id } = await req.json()
   await admin.from('release_calendar').delete().eq('id', id)
   return NextResponse.json({ ok: true })
