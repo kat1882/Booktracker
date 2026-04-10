@@ -288,9 +288,9 @@ export default async function BookPage({ params, searchParams }: { params: Promi
                 className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors"
               >
                 <div className="aspect-[2/3] relative bg-gray-800">
-                  {edition.cover_image ? (
+                  {(edition.cover_image || coverUrl) ? (
                     <Image
-                      src={edition.cover_image}
+                      src={edition.cover_image ?? coverUrl!}
                       alt={edition.edition_name}
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-300"
