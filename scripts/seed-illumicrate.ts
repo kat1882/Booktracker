@@ -49,13 +49,7 @@ function extractGenre(tags: string[]): string | null {
 async function seed() {
   console.log('Seeding Illumicrate source...')
 
-  // Upsert source
-  const { data: source, error: sourceErr } = await supabase
-    .from('source')
-    .upsert({ name: 'Illumicrate', type: 'subscription_box', country: 'GB', website: 'https://illumicrate.com' }, { onConflict: 'name' })
-    .select('id')
-    .single()
-
+  const { data: source, error: sourceErr } = await supabase.from('source').select('id').ilike('name', 'Illumicrate').single()
   if (sourceErr) { console.error('Source error:', sourceErr); process.exit(1) }
   console.log('Source ID:', source.id)
 
