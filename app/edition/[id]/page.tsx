@@ -123,12 +123,14 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
     { label: 'Original Price', value: edition.original_retail_price ? `$${edition.original_retail_price}` : null },
   ].filter(d => d.value)
 
-  const hasValue = edition.estimated_value != null
-  const valueAge = edition.value_updated_at
+  const marketPrice = edition.price_override ?? edition.estimated_value
+  const hasValue = marketPrice != null
+  const isOverride = edition.price_override != null
+  const valueAge = !isOverride && edition.value_updated_at
     ? Math.floor((Date.now() - new Date(edition.value_updated_at).getTime()) / (1000 * 60 * 60 * 24))
     : null
   const priceDiff = hasValue && edition.original_retail_price
-    ? ((edition.estimated_value - edition.original_retail_price) / edition.original_retail_price) * 100
+    ? ((marketPrice - edition.original_retail_price) / edition.original_retail_price) * 100
     : null
 
   // Build "same author" editions list from the book join
@@ -212,15 +214,17 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
               {hasValue && (
-                <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-center">
-                  <p className="text-xs text-gray-500 mb-1">Est. Market Value</p>
-                  <p className="text-lg font-bold text-white">${Number(edition.estimated_value).toFixed(2)}</p>
+                <div className={`bg-gray-900 border rounded-xl px-4 py-3 text-center ${isOverride ? 'border-amber-700/60' : 'border-gray-800'}`}>
+                  <p className="text-xs text-gray-500 mb-1">
+                    {isOverride ? '📌 Market Value' : 'Est. Market Value'}
+                  </p>
+                  <p className="text-lg font-bold text-white">${Number(marketPrice).toFixed(2)}</p>
                   {priceDiff !== null && (
                     <p className={`text-xs mt-0.5 font-medium ${priceDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {priceDiff >= 0 ? '▲' : '▼'} {Math.abs(priceDiff).toFixed(0)}% vs retail
                     </p>
                   )}
-                  {edition.ebay_price_low && edition.ebay_price_high && (
+                  {!isOverride && edition.ebay_price_low && edition.ebay_price_high && (
                     <p className="text-xs text-gray-600 mt-0.5">
                       ${Number(edition.ebay_price_low).toFixed(0)}–${Number(edition.ebay_price_high).toFixed(0)}
                       {edition.ebay_sold_count ? ` · ${edition.ebay_sold_count} sales` : ''}

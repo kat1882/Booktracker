@@ -86,9 +86,15 @@ function buildEbayUrl(query: string): string {
   return `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}&LH_Complete=1&LH_Sold=1&_ipg=60`
 }
 
-function buildSearchQuery(bookTitle: string, sourceName: string): string {
-  const cleanTitle = bookTitle.replace(/^(the|a|an)\s+/i, '').slice(0, 50).trim()
-  return `${cleanTitle} ${sourceName}`
+function buildSearchQuery(editionName: string, authorLastName: string): string {
+  // Strip parentheses/quotes/special chars that confuse eBay search
+  const clean = editionName
+    .replace(/['"()[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+  // Append author last name for specificity (helps distinguish editions)
+  return `${clean} ${authorLastName}`.trim()
 }
 
 async function triggerApifyRun(startUrls: { url: string; userData: { editionId: string } }[]): Promise<string> {
@@ -118,8 +124,8 @@ async function run() {
 
   let query = supabase
     .from('edition')
-    .select('id, edition_name, book:book_id ( title ), source:source_id ( name )')
-    .not('source_id', 'is', null)
+    .select('id, edition_name, book:book_id ( title, author )')
+    .is('price_override', null)  // never overwrite manually set prices
 
   if (!ALL) query = query.is('estimated_value', null)
   if (LIMIT) query = query.limit(LIMIT)
@@ -130,12 +136,15 @@ async function run() {
 
   console.log(`Found ${editions.length} editions to price`)
 
-  const urlList = (editions as unknown as { id: string; edition_name: string; book: { title: string } | null; source: { name: string } | null }[])
-    .filter(e => e.book?.title && e.source?.name)
-    .map(e => ({
-      url: buildEbayUrl(buildSearchQuery(e.book!.title, e.source!.name)),
-      userData: { editionId: e.id },
-    }))
+  const urlList = (editions as unknown as { id: string; edition_name: string; book: { title: string; author: string } | null }[])
+    .filter(e => e.edition_name && e.book?.author)
+    .map(e => {
+      const lastName = e.book!.author.split(' ').pop() ?? e.book!.author
+      return {
+        url: buildEbayUrl(buildSearchQuery(e.edition_name, lastName)),
+        userData: { editionId: e.id },
+      }
+    })
 
   console.log(`Built ${urlList.length} eBay search URLs`)
 

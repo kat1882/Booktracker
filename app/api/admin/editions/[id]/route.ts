@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 const ADMIN_USER_ID = 'd7e5e026-425b-4824-85a5-88d3412b95d3'
 
 const ALLOWED = ['edition_name', 'edition_type', 'cover_image', 'original_retail_price',
-  'estimated_value', 'isbn', 'publisher', 'release_month', 'print_run_size',
+  'estimated_value', 'price_override', 'isbn', 'publisher', 'release_month', 'print_run_size',
   'cover_artist', 'edge_treatment', 'binding', 'foiling', 'signature_type', 'extras', 'notes', 'sku']
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
