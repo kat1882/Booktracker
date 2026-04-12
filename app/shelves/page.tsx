@@ -11,7 +11,7 @@ export default async function ShelvesPage() {
   const { data: entries } = await supabase
     .from('user_collection')
     .select(`
-      id, reading_status, rating, date_read, date_started, condition, purchase_price, for_sale, asking_price,
+      id, reading_status, owned, rating, date_read, date_started, condition, purchase_price, for_sale, asking_price,
       book:book_id ( id, title, author, cover_ol_id, open_library_id, google_books_id ),
       edition:edition_id ( id, edition_name, cover_image, estimated_value, original_retail_price, source:source_id ( name ) )
     `)
@@ -20,7 +20,8 @@ export default async function ShelvesPage() {
 
   const all = (entries ?? []) as unknown as {
     id: string
-    reading_status: string
+    reading_status: string | null
+    owned: boolean
     rating: number | null
     date_read: string | null
     date_started: string | null
@@ -47,6 +48,7 @@ export default async function ShelvesPage() {
     read: readEntries.length,
     reading: all.filter(e => e.reading_status === 'reading').length,
     wantToRead: all.filter(e => e.reading_status === 'want_to_read').length,
+    owned: all.filter(e => e.owned).length,
     readThisYear: readEntries.filter(e => e.date_read?.startsWith(String(thisYear))).length,
     avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
     collectionValue: collectionValue > 0 ? collectionValue : null,

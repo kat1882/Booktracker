@@ -9,7 +9,8 @@ const SHOW_MORE_BY = 30
 
 interface ShelfEntry {
   id: string
-  reading_status: string
+  reading_status: string | null
+  owned: boolean
   rating: number | null
   date_read: string | null
   date_started: string | null
@@ -26,12 +27,14 @@ interface Stats {
   read: number
   reading: number
   wantToRead: number
+  owned: number
   readThisYear: number
   avgRating: number | null
   collectionValue: number | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  owned: 'Owned',
   reading: 'Currently Reading',
   want_to_read: 'Want to Read',
   read: 'Read',
@@ -39,6 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
+  owned: 'text-emerald-400',
   reading: 'text-green-400',
   want_to_read: 'text-blue-400',
   read: 'text-violet-400',
@@ -68,13 +72,23 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
     }
   }
 
-  const shelves = ['reading', 'want_to_read', 'read', 'dnf']
+  const shelves = ['owned', 'reading', 'want_to_read', 'read', 'dnf']
+
+  function resolveShelf(e: ShelfEntry): string | null {
+    if (e.reading_status) return e.reading_status
+    if (e.owned) return 'owned'
+    return null
+  }
+
   const filtered = activeShelf === 'all'
     ? entries
-    : entries.filter(e => e.reading_status === activeShelf)
+    : activeShelf === 'owned'
+      ? entries.filter(e => e.owned && !e.reading_status)
+      : entries.filter(e => e.reading_status === activeShelf)
 
   const grouped = filtered.reduce<Record<string, ShelfEntry[]>>((acc, e) => {
-    const s = e.reading_status ?? 'want_to_read'
+    const s = resolveShelf(e)
+    if (!s) return acc
     if (!acc[s]) acc[s] = []
     acc[s].push(e)
     return acc
@@ -128,7 +142,9 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
           All ({entries.length})
         </button>
         {shelves.map(s => {
-          const count = entries.filter(e => e.reading_status === s).length
+          const count = s === 'owned'
+            ? entries.filter(e => e.owned && !e.reading_status).length
+            : entries.filter(e => e.reading_status === s).length
           if (!count) return null
           return (
             <button
