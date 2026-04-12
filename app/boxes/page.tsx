@@ -7,7 +7,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-// Sort month strings chronologically
 function parseMonthYear(s: string): number {
   const months: Record<string, number> = {
     January: 1, February: 2, March: 3, April: 4, May: 5, June: 6,
@@ -39,71 +38,87 @@ type Edition = {
   edition_type: string | null
   cover_image: string | null
   release_month: string
-  source: {
-    id: string
-    name: string
-    type: string
-    website: string | null
-  }
-  book: {
-    id: string
-    title: string
-    author: string
-    cover_image: string | null
-  }
+  source: { id: string; name: string; type: string; website: string | null }
+  book: { id: string; title: string; author: string; cover_image: string | null }
 }
+
+const TYPE_FILTERS = [
+  { value: '', label: 'All' },
+  { value: 'subscription_box', label: 'Sub Boxes' },
+  { value: 'retailer', label: 'Retailers' },
+  { value: 'publisher', label: 'Publishers' },
+]
 
 export default async function BoxesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>
+  searchParams: Promise<{ month?: string; type?: string }>
 }) {
   const params = await searchParams
+  const selectedType = params.type ?? ''
 
-  // Fetch all available months
+  // Fetch all available months with counts
   const { data: monthRows } = await supabase
     .from('edition')
     .select('release_month')
     .not('release_month', 'is', null)
     .not('release_month', 'eq', '')
 
-  const allMonths = [...new Set((monthRows ?? []).map(r => r.release_month as string))]
-    .filter(m => /^\w+ 20(2[4-9]|3\d)$/.test(m))
-    .sort((a, b) => parseMonthYear(a) - parseMonthYear(b))
+  const monthCounts: Record<string, number> = {}
+  for (const r of monthRows ?? []) {
+    const m = r.release_month as string
+    if (/^\w+ 20(2[4-9]|3\d)$/.test(m)) monthCounts[m] = (monthCounts[m] ?? 0) + 1
+  }
+  const allMonths = Object.keys(monthCounts).sort((a, b) => parseMonthYear(a) - parseMonthYear(b))
 
-  // Default to current month or nearest month with data
+  // Default to current month or nearest past month with data
   const now = new Date()
   const currentLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   const selectedMonth = params.month && allMonths.includes(params.month)
     ? params.month
     : (allMonths.includes(currentLabel)
-      ? currentLabel
-      : allMonths.findLast(m => parseMonthYear(m) <= parseMonthYear(currentLabel)) ?? allMonths[allMonths.length - 1] ?? '')
+        ? currentLabel
+        : allMonths.findLast(m => parseMonthYear(m) <= parseMonthYear(currentLabel)) ?? allMonths[allMonths.length - 1] ?? '')
 
   // Fetch editions for this month
   const { data: editions } = await supabase
     .from('edition')
     .select(`
-      id,
-      book_id,
-      edition_type,
-      cover_image,
-      release_month,
+      id, book_id, edition_type, cover_image, release_month,
       source:source_id (id, name, type, website),
       book:book_id (id, title, author, cover_image)
     `)
     .eq('release_month', selectedMonth)
     .order('id')
 
-  // Group by source name, sorted alphabetically
+  // Filter by type and group by source
+  const allEditions = (editions ?? []) as unknown as Edition[]
+  const filtered = selectedType
+    ? allEditions.filter(e => e.source?.type === selectedType)
+    : allEditions
+
   const bySource: Record<string, Edition[]> = {}
-  for (const e of (editions ?? []) as unknown as Edition[]) {
+  for (const e of filtered) {
     if (!e.source?.name) continue
     const key = e.source.name
     if (!bySource[key]) bySource[key] = []
     bySource[key]!.push(e)
   }
   const sortedSources = Object.keys(bySource).sort((a, b) => a.localeCompare(b))
+
+  function monthHref(m: string) {
+    const p = new URLSearchParams()
+    p.set('month', m)
+    if (selectedType) p.set('type', selectedType)
+    return `/boxes?${p}`
+  }
+
+  function typeHref(t: string) {
+    const p = new URLSearchParams()
+    if (selectedMonth) p.set('month', selectedMonth)
+    if (t) p.set('type', t)
+    return `/boxes?${p}`
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -123,28 +138,53 @@ export default async function BoxesPage({
         </p>
       </div>
 
-      {/* Month tabs — scrollable horizontal strip */}
-      <div className="overflow-x-auto pb-2 mb-8 -mx-4 px-4">
+      {/* Month tabs */}
+      <div className="overflow-x-auto pb-2 mb-4 -mx-4 px-4">
         <div className="flex gap-2 min-w-max">
           {allMonths.map(m => {
             const [mon, yr] = m.split(' ')
             const isSelected = m === selectedMonth
+            const count = monthCounts[m] ?? 0
+            const isCurrent = m === currentLabel
             return (
               <Link
                 key={m}
-                href={`/boxes?month=${encodeURIComponent(m)}`}
-                className={`px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                href={monthHref(m)}
+                className={`relative px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                   isSelected
                     ? 'bg-violet-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
                 }`}
               >
+                {isCurrent && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full" title="This month" />
+                )}
                 <span className="font-semibold">{mon?.slice(0, 3)}</span>{' '}
-                <span className="text-[10px] opacity-80">{yr}</span>
+                <span className="opacity-80">{yr}</span>
+                <span className={`ml-1.5 text-[10px] ${isSelected ? 'text-violet-200' : 'text-gray-600'}`}>
+                  {count}
+                </span>
               </Link>
             )
           })}
         </div>
+      </div>
+
+      {/* Type filter pills */}
+      <div className="flex gap-2 flex-wrap mb-6">
+        {TYPE_FILTERS.map(f => (
+          <Link
+            key={f.value}
+            href={typeHref(f.value)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              selectedType === f.value
+                ? 'bg-violet-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+            }`}
+          >
+            {f.label}
+          </Link>
+        ))}
       </div>
 
       {/* Month heading + count */}
@@ -152,7 +192,8 @@ export default async function BoxesPage({
         <h2 className="text-xl font-bold text-white">{selectedMonth}</h2>
         <span className="text-sm text-gray-500">
           {sortedSources.length} {sortedSources.length === 1 ? 'company' : 'companies'},{' '}
-          {(editions ?? []).length} editions
+          {filtered.length} editions
+          {selectedType && <> · {SOURCE_TYPE_LABELS[selectedType]}</>}
         </span>
       </div>
 
@@ -168,7 +209,6 @@ export default async function BoxesPage({
 
             return (
               <section key={sourceName}>
-                {/* Company header — mirrors BAS company header style */}
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-800">
                   <div>
                     <h3 className="text-base font-bold text-white">{sourceName}</h3>
@@ -186,11 +226,11 @@ export default async function BoxesPage({
                           {source.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
                         </a>
                       )}
+                      <span className="text-xs text-gray-600">{entries.length} {entries.length === 1 ? 'edition' : 'editions'}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Book grid — 2→3→4→6 columns like BAS */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                   {entries.map(e => {
                     const cover = e.cover_image ?? e.book?.cover_image
@@ -204,7 +244,6 @@ export default async function BoxesPage({
                         href={`/edition/${e.id}`}
                         className="group flex flex-col bg-gray-900 rounded-xl overflow-hidden border border-gray-800 hover:border-violet-500 transition-colors"
                       >
-                        {/* Book cover */}
                         <div className="aspect-[2/3] relative bg-gray-800">
                           {cover ? (
                             <Image
@@ -233,7 +272,6 @@ export default async function BoxesPage({
                           )}
                         </div>
 
-                        {/* Text */}
                         <div className="p-2.5 flex flex-col gap-0.5 flex-1">
                           <p className="text-[11px] font-semibold text-white leading-tight line-clamp-2">{title}</p>
                           {showAuthor && (

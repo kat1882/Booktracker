@@ -141,9 +141,19 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
-      <Link href="/browse" className="text-sm text-gray-400 hover:text-white mb-6 inline-block transition-colors">
-        ← Back to browse
-      </Link>
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/browse" className="text-sm text-gray-400 hover:text-white transition-colors">
+          ← Back to browse
+        </Link>
+        {edition.release_month && (
+          <Link
+            href={`/boxes?month=${encodeURIComponent(edition.release_month)}`}
+            className="text-sm text-violet-400 hover:text-violet-300 transition-colors"
+          >
+            View all {edition.release_month} editions →
+          </Link>
+        )}
+      </div>
 
       <div className="flex flex-col md:flex-row gap-8">
         {/* Cover */}
