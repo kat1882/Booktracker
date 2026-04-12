@@ -8,6 +8,7 @@ import AddEditionToShelfButton from './AddEditionToShelfButton'
 import EditionReviews from './EditionReviews'
 import PriceChart from './PriceChart'
 import AddToListButton from './AddToListButton'
+import EditionGallery from './EditionGallery'
 
 const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,6 +49,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
     { data: sameSource },
     { data: sameType },
     { data: sameAuthor },
+    { data: galleryImages },
   ] = await Promise.all([
     anonSupabase
       .from('edition_price_history')
@@ -97,6 +99,13 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
       .eq('author', book.author)
       .neq('id', edition.book_id)
       .limit(8) : Promise.resolve({ data: [] }),
+
+    // Gallery images
+    anonSupabase
+      .from('edition_image')
+      .select('id, image_url, image_type, is_primary, sort_order, uploaded_by')
+      .eq('edition_id', id)
+      .order('sort_order', { ascending: true }),
   ])
 
   const reviewUserIds = (reviewsRaw ?? []).map(r => r.user_id)
@@ -156,21 +165,15 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
       </div>
 
       <div className="flex flex-col md:flex-row gap-8">
-        {/* Cover */}
+        {/* Cover + gallery */}
         <div className="w-full md:w-56 shrink-0">
-          <div className="aspect-[2/3] relative bg-gray-800 rounded-xl overflow-hidden">
-            {edition.cover_image ? (
-              <Image
-                src={edition.cover_image}
-                alt={book.title}
-                fill
-                className="object-cover"
-                sizes="224px"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm">No image</div>
-            )}
-          </div>
+          <EditionGallery
+            editionId={id}
+            coverImage={edition.cover_image}
+            initialImages={(galleryImages ?? []) as any}
+            isLoggedIn={!!user}
+            currentUserId={user?.id ?? null}
+          />
         </div>
 
         {/* Info */}
