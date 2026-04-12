@@ -402,14 +402,14 @@ function SimilarRow({
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">{label}</h3>
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {editions.map(e => (
           <Link
             key={e.id}
             href={`/edition/${e.id}`}
-            className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors"
+            className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors flex flex-col"
           >
-            <div className="aspect-[2/3] relative bg-gray-800">
+            <div className="aspect-[2/3] relative bg-gray-800 overflow-hidden shrink-0">
               {e.cover_image ? (
                 <Image
                   src={e.cover_image}
@@ -424,7 +424,7 @@ function SimilarRow({
             </div>
             <div className="p-2">
               {e.tag && <p className="text-xs text-violet-400 font-medium leading-tight truncate">{e.tag}</p>}
-              {e.subtitle && <p className="text-xs text-gray-400 leading-tight line-clamp-2 mt-0.5">{e.subtitle}</p>}
+              {e.subtitle && <p className="text-xs text-gray-400 leading-tight line-clamp-1 mt-0.5">{e.subtitle}</p>}
               {e.estimated_value && (
                 <p className="text-xs text-emerald-400 mt-1">${Number(e.estimated_value).toFixed(0)}</p>
               )}
