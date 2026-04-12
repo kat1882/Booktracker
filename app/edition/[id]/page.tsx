@@ -9,6 +9,7 @@ import EditionReviews from './EditionReviews'
 import PriceChart from './PriceChart'
 import AddToListButton from './AddToListButton'
 import EditionGallery from './EditionGallery'
+import OwnedButton from './OwnedButton'
 
 const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,13 +30,15 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
 
   let isWishlisted = false
   let shelfStatus: string | null = null
+  let isOwned = false
   if (user) {
     const [{ data: wishlistData }, { data: shelfData }] = await Promise.all([
       supabase.from('user_wishlist').select('edition_id').eq('user_id', user.id).eq('edition_id', id).maybeSingle(),
-      supabase.from('user_collection').select('reading_status').eq('user_id', user.id).eq('edition_id', id).maybeSingle(),
+      supabase.from('user_collection').select('reading_status, owned').eq('user_id', user.id).eq('edition_id', id).maybeSingle(),
     ])
     isWishlisted = !!wishlistData
     shelfStatus = shelfData?.reading_status ?? null
+    isOwned = shelfData?.owned ?? false
   }
 
   const book = edition.book as Record<string, string>
@@ -203,6 +206,12 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
 
           {/* Shelf + wishlist + list buttons */}
           <div className="mb-6 flex flex-col gap-3">
+            <OwnedButton
+              editionId={id}
+              bookId={edition.book_id}
+              initialOwned={isOwned}
+              isLoggedIn={!!user}
+            />
             <AddEditionToShelfButton
               editionId={id}
               bookId={edition.book_id}
