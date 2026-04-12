@@ -239,6 +239,7 @@ export default async function BoxesPage({
                           {showAuthor && (
                             <p className="text-[10px] text-gray-400 line-clamp-1">{author}</p>
                           )}
+                          <p className="text-[10px] text-violet-400 mt-auto pt-1">{e.release_month}</p>
                         </div>
                       </Link>
                     )
