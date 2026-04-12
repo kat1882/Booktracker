@@ -402,7 +402,7 @@ function SimilarRow({
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">{label}</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
         {editions.map(e => (
           <Link
             key={e.id}
