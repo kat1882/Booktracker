@@ -213,7 +213,6 @@ export default async function BoxesPage({
                               fill
                               className="object-cover group-hover:scale-105 transition-transform duration-300"
                               sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
-                              unoptimized={cover.includes('wixstatic') || cover.includes('books.google')}
                             />
                           ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
