@@ -162,6 +162,19 @@ export default async function BookPage({ params, searchParams }: { params: Promi
     if (!resolvedOlId) {
       resolvedOlId = await findOLId(title, author)
     }
+    // If we still have no special editions, try title-based lookup now that we have the real title
+    if (!dbBook || (dbBook.editions as unknown[]).length === 0) {
+      const { data: titleMatch } = await supabase
+        .from('book')
+        .select(editionSelect)
+        .ilike('title', title)
+        .order('title')
+        .limit(1)
+        .single()
+      if (titleMatch && (titleMatch.editions as unknown[]).length > 0) {
+        dbBook = { ...titleMatch, ...dbBook, editions: titleMatch.editions }
+      }
+    }
   } else if (olId) {
     if (!coverUrl && dbBook?.cover_ol_id) {
       coverUrl = `https://covers.openlibrary.org/b/id/${dbBook.cover_ol_id}-L.jpg`
