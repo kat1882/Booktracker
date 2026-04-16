@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import ShelvesClient from './ShelvesClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ShelvesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
