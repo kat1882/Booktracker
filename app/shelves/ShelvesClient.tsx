@@ -159,41 +159,68 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
       </div>
 
       {/* Shelves */}
-      {(activeShelf === 'all' ? shelves : [activeShelf]).map(status => {
-        const shelf = grouped[status]
-        if (!shelf?.length) return null
-        const shown = shownCounts[status] ?? INITIAL_SHOW
-        const visible = shelf.slice(0, shown)
-        const hasMore = shelf.length > shown
-        return (
-          <section key={status} className="mb-10">
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className={`text-base font-semibold ${STATUS_COLORS[status]}`}>
-                {STATUS_LABELS[status]}
-              </h2>
-              <span className="text-sm text-gray-600">{shelf.length}</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {visible.map(entry => (
-                <ShelfCard
-                  key={entry.id}
-                  entry={entry}
-                  onUpdate={handleUpdate}
-                  onRemove={handleRemove}
-                />
-              ))}
-            </div>
-            {hasMore && (
-              <button
-                onClick={() => setShownCounts(prev => ({ ...prev, [status]: (prev[status] ?? INITIAL_SHOW) + SHOW_MORE_BY }))}
-                className="mt-4 w-full py-2.5 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-colors"
-              >
-                Show more ({shelf.length - shown} remaining)
-              </button>
-            )}
-          </section>
-        )
-      })}
+      {activeShelf === 'owned' || activeShelf === 'want_to_read' ? (
+        // For owned and want_to_read, render filtered list directly (no sub-grouping)
+        (() => {
+          const shown = shownCounts[activeShelf] ?? INITIAL_SHOW
+          const visible = filtered.slice(0, shown)
+          const hasMore = filtered.length > shown
+          return filtered.length === 0 ? null : (
+            <section className="mb-10">
+              <div className="flex items-center gap-2 mb-4">
+                <h2 className={`text-base font-semibold ${STATUS_COLORS[activeShelf]}`}>
+                  {STATUS_LABELS[activeShelf]}
+                </h2>
+                <span className="text-sm text-gray-600">{filtered.length}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {visible.map(entry => (
+                  <ShelfCard key={entry.id} entry={entry} onUpdate={handleUpdate} onRemove={handleRemove} />
+                ))}
+              </div>
+              {hasMore && (
+                <button
+                  onClick={() => setShownCounts(prev => ({ ...prev, [activeShelf]: (prev[activeShelf] ?? INITIAL_SHOW) + SHOW_MORE_BY }))}
+                  className="mt-4 w-full py-2.5 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-colors"
+                >
+                  Show more ({filtered.length - shown} remaining)
+                </button>
+              )}
+            </section>
+          )
+        })()
+      ) : (
+        (activeShelf === 'all' ? shelves : [activeShelf]).map(status => {
+          const shelf = grouped[status]
+          if (!shelf?.length) return null
+          const shown = shownCounts[status] ?? INITIAL_SHOW
+          const visible = shelf.slice(0, shown)
+          const hasMore = shelf.length > shown
+          return (
+            <section key={status} className="mb-10">
+              <div className="flex items-center gap-2 mb-4">
+                <h2 className={`text-base font-semibold ${STATUS_COLORS[status]}`}>
+                  {STATUS_LABELS[status]}
+                </h2>
+                <span className="text-sm text-gray-600">{shelf.length}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {visible.map(entry => (
+                  <ShelfCard key={entry.id} entry={entry} onUpdate={handleUpdate} onRemove={handleRemove} />
+                ))}
+              </div>
+              {hasMore && (
+                <button
+                  onClick={() => setShownCounts(prev => ({ ...prev, [status]: (prev[status] ?? INITIAL_SHOW) + SHOW_MORE_BY }))}
+                  className="mt-4 w-full py-2.5 text-sm text-gray-400 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-colors"
+                >
+                  Show more ({shelf.length - shown} remaining)
+                </button>
+              )}
+            </section>
+          )
+        })
+      )}
     </div>
   )
 }
