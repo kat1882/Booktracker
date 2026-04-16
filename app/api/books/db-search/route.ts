@@ -11,12 +11,17 @@ export async function GET(request: Request) {
   const q = searchParams.get('q')?.trim()
   if (!q) return NextResponse.json({ books: [] })
 
-  const { data } = await supabase
-    .from('book')
-    .select('id, title, author, cover_image, genre, first_publish_year, google_books_id')
-    .or(`title.ilike.%${q}%,author.ilike.%${q}%`)
-    .order('title')
-    .limit(20)
+  const [byTitle, byAuthor] = await Promise.all([
+    supabase.from('book').select('id, title, author, cover_image, genre, first_publish_year').ilike('title', `%${q}%`).order('title').limit(20),
+    supabase.from('book').select('id, title, author, cover_image, genre, first_publish_year').ilike('author', `%${q}%`).order('title').limit(20),
+  ])
+
+  const seen = new Set<string>()
+  const data = [...(byTitle.data ?? []), ...(byAuthor.data ?? [])].filter(b => {
+    if (seen.has(b.id)) return false
+    seen.add(b.id)
+    return true
+  }).slice(0, 20)
 
   return NextResponse.json({ books: data ?? [] })
 }
