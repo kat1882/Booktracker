@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase-server'
 import Image from 'next/image'
 import Link from 'next/link'
 import AddToShelfButton from './AddToShelfButton'
-import PublishedEditionsList, { type PublishedEditionData } from './PublishedEditionsList'
+import { type PublishedEditionData } from './PublishedEditionsList'
+import EditionsTabs from './EditionsTabs'
 
 interface GBVolumeInfo {
   title: string
@@ -93,6 +94,9 @@ function formatLanguage(langKey?: string) {
   return langKey ? (map[langKey] ?? langKey.replace('/languages/', '')) : null
 }
 
+const editionSelect = '*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name))'
+const specialEditionSelect = 'id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name)'
+
 export default async function BookPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id } = await params
   const { from } = await searchParams
@@ -101,12 +105,9 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   const { data: { user } } = await supabase.auth.getUser()
 
   const isGoogleBooks = id.startsWith('gb_')
-  // UUID format: 8-4-4-4-12 hex chars
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   const gbId = isGoogleBooks ? id.slice(3) : null
   const olId = !isGoogleBooks && !isUUID ? id : null
-
-  const editionSelect = '*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name))'
 
   // Look up book in our DB — by UUID, Google Books ID, or Open Library ID
   let { data: dbBook } = isUUID
@@ -115,26 +116,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
       ? await supabase.from('book').select(editionSelect).eq('google_books_id', gbId).single()
       : await supabase.from('book').select(editionSelect).eq('open_library_id', olId!).single()
 
-  // If no editions found, try a title-based fallback (catches Illumicrate books not yet linked)
-  if (!dbBook || (dbBook.editions as unknown[]).length === 0) {
-    const externalTitle = dbBook?.title
-    if (externalTitle) {
-      const { data: titleMatch } = await supabase
-        .from('book')
-        .select(editionSelect)
-        .ilike('title', externalTitle)
-        .not('id', 'eq', dbBook?.id ?? '00000000-0000-0000-0000-000000000000')
-        .order('title')
-        .limit(1)
-        .single()
-      if (titleMatch && (titleMatch.editions as unknown[]).length > 0) {
-        // Merge: use the title match's editions but keep the external IDs from the original
-        dbBook = { ...titleMatch, ...dbBook, editions: titleMatch.editions }
-      }
-    }
-  }
-
-  // Fetch from external API
+  // Fetch from external API to resolve title/author
   let title = dbBook?.title ?? 'Unknown Title'
   let author = dbBook?.author ?? 'Unknown'
   let coverUrl: string | null = dbBook?.cover_image ?? null
@@ -145,7 +127,6 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   let resolvedOlId: string | null = dbBook?.open_library_id ?? (isGoogleBooks ? null : olId)
 
   if (isUUID) {
-    // All data comes from our DB — no external API needed
     resolvedOlId = dbBook?.open_library_id ?? null
   } else if (gbId) {
     const gbInfo = await fetchGoogleBook(gbId)
@@ -158,22 +139,8 @@ export default async function BookPage({ params, searchParams }: { params: Promi
       pageCount = gbInfo.pageCount ?? pageCount
       publishedYear = gbInfo.publishedDate?.slice(0, 4) ?? null
     }
-    // Try to find OL ID for edition data
     if (!resolvedOlId) {
       resolvedOlId = await findOLId(title, author)
-    }
-    // If we still have no special editions, try title-based lookup now that we have the real title
-    if (!dbBook || (dbBook.editions as unknown[]).length === 0) {
-      const { data: titleMatch } = await supabase
-        .from('book')
-        .select(editionSelect)
-        .ilike('title', title)
-        .order('title')
-        .limit(1)
-        .single()
-      if (titleMatch && (titleMatch.editions as unknown[]).length > 0) {
-        dbBook = { ...titleMatch, ...dbBook, editions: titleMatch.editions }
-      }
     }
   } else if (olId) {
     if (!coverUrl && dbBook?.cover_ol_id) {
@@ -181,10 +148,50 @@ export default async function BookPage({ params, searchParams }: { params: Promi
     }
   }
 
+  // Fetch special editions — try multiple strategies to find them
+  let specialEditions: {
+    id: string
+    edition_name: string
+    cover_image?: string
+    edition_type: string
+    release_month?: string
+    original_retail_price?: number
+    source?: { name: string }
+  }[] = (dbBook?.editions ?? []) as typeof specialEditions
+
+  // If none found via direct DB lookup, search by title (wildcard) across all books
+  if (specialEditions.length === 0 && title !== 'Unknown Title') {
+    const { data: matchingBooks } = await supabase
+      .from('book')
+      .select('id')
+      .ilike('title', `%${title}%`)
+      .limit(10)
+
+    const bookIds = (matchingBooks ?? []).map((b: { id: string }) => b.id)
+    if (bookIds.length > 0) {
+      const { data: foundEditions } = await supabase
+        .from('edition')
+        .select(specialEditionSelect)
+        .in('book_id', bookIds)
+
+      if (foundEditions && foundEditions.length > 0) {
+        specialEditions = foundEditions
+        // Also update dbBook reference for shelf status lookup
+        if (!dbBook && matchingBooks?.[0]) {
+          const { data: matched } = await supabase
+            .from('book')
+            .select(editionSelect)
+            .eq('id', matchingBooks[0].id)
+            .single()
+          if (matched) dbBook = matched
+        }
+      }
+    }
+  }
+
   // Fetch all published editions from Open Library
   const olEditions = resolvedOlId ? await fetchOLEditions(resolvedOlId) : []
 
-  // Deduplicate editions by ISBN, keep ones with useful data
   const seenIsbns = new Set<string>()
   const publishedEditions = olEditions
     .filter(e => {
@@ -197,16 +204,6 @@ export default async function BookPage({ params, searchParams }: { params: Promi
       return true
     })
     .slice(0, 30)
-
-  const specialEditions = (dbBook?.editions ?? []) as {
-    id: string
-    edition_name: string
-    cover_image?: string
-    edition_type: string
-    release_month?: string
-    original_retail_price?: number
-    source?: { name: string }
-  }[]
 
   // Get user's shelf status
   let shelfStatus: string | null = null
@@ -231,7 +228,6 @@ export default async function BookPage({ params, searchParams }: { params: Promi
     page_count: pageCount,
   }
 
-  // Serialize published editions for the client component
   const serializedEditions: PublishedEditionData[] = publishedEditions.map(edition => ({
     isbn: edition.isbn_13?.[0] ?? edition.isbn_10?.[0] ?? null,
     format: formatFormat(edition.physical_format),
@@ -288,61 +284,15 @@ export default async function BookPage({ params, searchParams }: { params: Promi
         </div>
       </div>
 
-      {/* Special Editions — subscription box, signed, etc. */}
-      {specialEditions.length > 0 && (
-        <section className="mb-12">
-          <h2 className="text-xl font-bold text-white mb-1">Special Editions</h2>
-          <p className="text-sm text-gray-500 mb-5">Subscription box exclusives, signed editions, and collector variants</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {specialEditions.map(edition => (
-              <Link
-                key={edition.id}
-                href={`/edition/${edition.id}`}
-                className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors"
-              >
-                <div className="aspect-[2/3] relative bg-gray-800">
-                  {(edition.cover_image || coverUrl) ? (
-                    <Image
-                      src={edition.cover_image ?? coverUrl!}
-                      alt={edition.edition_name}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      sizes="200px"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-2">No image</div>
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="text-xs text-violet-400 font-medium">{edition.source?.name}</p>
-                  <p className="text-xs text-gray-300 mt-0.5 line-clamp-2">{edition.edition_name}</p>
-                  {edition.release_month && <p className="text-xs text-gray-500 mt-0.5">{edition.release_month}</p>}
-                  {edition.original_retail_price && <p className="text-xs text-gray-500">£{edition.original_retail_price}</p>}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Published Editions — ISBNs and formats from Open Library */}
-      <section>
-        <h2 className="text-xl font-bold text-white mb-1">Published Editions</h2>
-        <p className="text-sm text-gray-500 mb-5">All known printings, formats, and ISBN variants</p>
-
-        {serializedEditions.length > 0 ? (
-          <PublishedEditionsList
-            editions={serializedEditions}
-            bookId={dbBook?.id ?? null}
-            bookMeta={bookPayload}
-            isLoggedIn={!!user}
-          />
-        ) : (
-          <div className="border border-dashed border-gray-800 rounded-xl p-8 text-center text-gray-600 text-sm">
-            No edition data found for this book.
-          </div>
-        )}
-      </section>
+      {/* Tabbed editions view */}
+      <EditionsTabs
+        specialEditions={specialEditions}
+        publishedEditions={serializedEditions}
+        coverUrl={coverUrl}
+        bookId={dbBook?.id ?? null}
+        bookMeta={bookPayload}
+        isLoggedIn={!!user}
+      />
     </div>
   )
 }
