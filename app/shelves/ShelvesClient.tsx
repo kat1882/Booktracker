@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ShelfCard from './ShelfCard'
 import Link from 'next/link'
 
@@ -53,6 +53,10 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
   const [entries, setEntries] = useState<ShelfEntry[]>(initialEntries)
   const [activeShelf, setActiveShelf] = useState<string>('all')
   const [shownCounts, setShownCounts] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    setEntries(initialEntries)
+  }, [initialEntries])
 
   async function handleUpdate(id: string, updates: Record<string, unknown>) {
     const res = await fetch(`/api/shelf/${id}`, {
