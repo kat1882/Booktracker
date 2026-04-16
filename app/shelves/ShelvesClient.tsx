@@ -34,9 +34,9 @@ interface Stats {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  owned: 'Owned',
+  owned: 'Books I Own',
   reading: 'Currently Reading',
-  want_to_read: 'Want to Read',
+  want_to_read: 'Books I Want',
   read: 'Read',
   dnf: 'Did Not Finish',
 }
@@ -83,7 +83,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
   const filtered = activeShelf === 'all'
     ? entries
     : activeShelf === 'owned'
-      ? entries.filter(e => e.owned && !e.reading_status)
+      ? entries.filter(e => e.owned)
       : entries.filter(e => e.reading_status === activeShelf)
 
   const grouped = filtered.reduce<Record<string, ShelfEntry[]>>((acc, e) => {
@@ -143,7 +143,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
         </button>
         {shelves.map(s => {
           const count = s === 'owned'
-            ? entries.filter(e => e.owned && !e.reading_status).length
+            ? entries.filter(e => e.owned).length
             : entries.filter(e => e.reading_status === s).length
           if (!count) return null
           return (
@@ -152,7 +152,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
               onClick={() => setActiveShelf(s)}
               className={`text-xs px-3 py-1.5 rounded-lg transition-colors font-medium ${activeShelf === s ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-white'}`}
             >
-              {STATUS_LABELS[s].split(' ')[0]} ({count})
+              {STATUS_LABELS[s]} ({count})
             </button>
           )
         })}
