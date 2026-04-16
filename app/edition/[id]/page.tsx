@@ -11,6 +11,8 @@ import AddToListButton from './AddToListButton'
 import EditionGallery from './EditionGallery'
 import OwnedButton from './OwnedButton'
 
+export const dynamic = 'force-dynamic'
+
 const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
