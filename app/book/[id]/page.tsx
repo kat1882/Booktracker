@@ -128,6 +128,9 @@ export default async function BookPage({ params, searchParams }: { params: Promi
 
   if (isUUID) {
     resolvedOlId = dbBook?.open_library_id ?? null
+    if (!resolvedOlId && title !== 'Unknown Title') {
+      resolvedOlId = await findOLId(title, author)
+    }
   } else if (gbId) {
     const gbInfo = await fetchGoogleBook(gbId)
     if (gbInfo) {
