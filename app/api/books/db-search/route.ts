@@ -12,8 +12,8 @@ export async function GET(request: Request) {
   if (!q) return NextResponse.json({ books: [] })
 
   const [byTitle, byAuthor] = await Promise.all([
-    supabase.from('book').select('id, title, author, cover_image, genre, first_publish_year').ilike('title', `%${q}%`).order('title').limit(20),
-    supabase.from('book').select('id, title, author, cover_image, genre, first_publish_year').ilike('author', `%${q}%`).order('title').limit(20),
+    supabase.from('book_browse').select('id, title, author, book_cover, genre').ilike('title', `%${q}%`).order('title').limit(20),
+    supabase.from('book_browse').select('id, title, author, book_cover, genre').ilike('author', `%${q}%`).order('title').limit(20),
   ])
 
   const seen = new Set<string>()
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     if (seen.has(b.id)) return false
     seen.add(b.id)
     return true
-  }).slice(0, 20)
+  }).slice(0, 20).map(b => ({ ...b, cover_image: b.book_cover }))
 
   return NextResponse.json({ books: data ?? [] })
 }
