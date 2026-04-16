@@ -55,14 +55,21 @@ async function fetchOLEditions(olId: string): Promise<OLEdition[]> {
 
 async function findOLId(title: string, author: string): Promise<string | null> {
   try {
-    const q = `title:${encodeURIComponent(title)} author:${encodeURIComponent(author.split(' ').slice(-1)[0])}`
-    const res = await fetch(
-      `https://openlibrary.org/search.json?q=${q}&limit=1&fields=key`,
-      { next: { revalidate: 86400 } }
-    )
-    const data = await res.json()
-    const key: string = data.docs?.[0]?.key ?? ''
-    return key ? key.replace('/works/', '') : null
+    const lastName = author.split(' ').slice(-1)[0]
+    // Try title + author last name first, fall back to title only
+    for (const q of [
+      `title:${encodeURIComponent(title)} author:${encodeURIComponent(lastName)}`,
+      `title:${encodeURIComponent(title)}`,
+    ]) {
+      const res = await fetch(
+        `https://openlibrary.org/search.json?q=${q}&limit=1&fields=key`,
+        { next: { revalidate: 86400 } }
+      )
+      const data = await res.json()
+      const key: string = data.docs?.[0]?.key ?? ''
+      if (key) return key.replace('/works/', '')
+    }
+    return null
   } catch { return null }
 }
 
