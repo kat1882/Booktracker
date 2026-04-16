@@ -14,38 +14,24 @@ export async function POST(request: Request) {
     { onConflict: 'id', ignoreDuplicates: true }
   )
 
-  // Look for existing entry by edition_id first, then fall back to book_id
-  let existing: { id: string } | null = null
-
-  const { data: byEdition } = await supabase
+  // Find existing entry for this specific edition
+  const { data: existing } = await supabase
     .from('user_collection')
     .select('id')
     .eq('user_id', user.id)
     .eq('edition_id', edition_id)
     .maybeSingle()
 
-  if (byEdition) {
-    existing = byEdition
-  } else {
-    // Entry may have been created via "Add to Shelf" on the book page (no edition_id)
-    const { data: byBook } = await supabase
-      .from('user_collection')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('book_id', book_id)
-      .maybeSingle()
-    if (byBook) existing = byBook
-  }
-
   let error
   if (existing) {
-    // Update owned and also attach the edition_id if it wasn't set
     const { error: updateError } = await supabase
       .from('user_collection')
-      .update({ owned, edition_id })
+      .update({ owned })
       .eq('id', existing.id)
     error = updateError
   } else {
+    // Create a new edition-specific row (after the schema migration, multiple
+    // editions of the same book are allowed as long as edition_id differs)
     const { error: insertError } = await supabase
       .from('user_collection')
       .insert({ user_id: user.id, edition_id, book_id, owned })
