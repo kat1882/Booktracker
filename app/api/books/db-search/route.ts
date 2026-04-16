@@ -1,0 +1,22 @@
+import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const q = searchParams.get('q')?.trim()
+  if (!q) return NextResponse.json({ books: [] })
+
+  const { data } = await supabase
+    .from('book')
+    .select('id, title, author, cover_image, genre, first_publish_year, google_books_id')
+    .or(`title.ilike.%${q}%,author.ilike.%${q}%`)
+    .order('title')
+    .limit(20)
+
+  return NextResponse.json({ books: data ?? [] })
+}

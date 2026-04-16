@@ -21,6 +21,29 @@ interface GBBook {
   }
 }
 
+interface DBBook {
+  id: string
+  title: string
+  author: string
+  cover_image?: string
+  genre?: string
+  first_publish_year?: number
+  google_books_id?: string
+}
+
+// Unified result shown in the list
+interface BookResult {
+  key: string
+  href: string
+  title: string
+  author: string
+  year?: string
+  genre?: string
+  cover?: string
+  isInDB: boolean
+  gbBook?: GBBook  // only for GB results (for add-to-shelf)
+}
+
 type ShelfStatus = 'read' | 'reading' | 'want_to_read'
 
 const GENRES = [
@@ -45,7 +68,7 @@ function SearchInner() {
 
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
   const [genre, setGenre] = useState(searchParams.get('genre') ?? '')
-  const [bookResults, setBookResults] = useState<GBBook[]>([])
+  const [results, setResults] = useState<BookResult[]>([])
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
   const [added, setAdded] = useState<Record<string, ShelfStatus>>({})
@@ -56,17 +79,62 @@ function SearchInner() {
     const g = searchParams.get('genre') ?? ''
     setQuery(q)
     setGenre(g)
-    if (q) doBookSearch(q, g)
+    if (q) doSearch(q, g)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()])
 
-  async function doBookSearch(q: string, g: string) {
+  async function doSearch(q: string, g: string) {
     if (!q.trim()) return
     setLoading(true)
+
     const fullQuery = g ? `${q} subject:${g}` : q
-    const res = await fetch(`/api/books/search?q=${encodeURIComponent(fullQuery)}`)
-    const data = await res.json()
-    setBookResults(data.books ?? [])
+
+    // Run both searches in parallel
+    const [gbRes, dbRes] = await Promise.all([
+      fetch(`/api/books/search?q=${encodeURIComponent(fullQuery)}`).then(r => r.json()),
+      fetch(`/api/books/db-search?q=${encodeURIComponent(q)}`).then(r => r.json()),
+    ])
+
+    const gbBooks: GBBook[] = gbRes.books ?? []
+    const dbBooks: DBBook[] = dbRes.books ?? []
+
+    // Build a set of google_books_ids that exist in DB so we don't duplicate
+    const dbGbIds = new Set(dbBooks.map(b => b.google_books_id).filter(Boolean))
+
+    const merged: BookResult[] = []
+
+    // DB books first (they have special editions)
+    for (const db of dbBooks) {
+      merged.push({
+        key: `db_${db.id}`,
+        href: `/book/${db.id}`,
+        title: db.title,
+        author: db.author,
+        year: db.first_publish_year ? String(db.first_publish_year) : undefined,
+        genre: db.genre ?? undefined,
+        cover: db.cover_image,
+        isInDB: true,
+      })
+    }
+
+    // Google Books results — skip any already covered by DB
+    for (const gb of gbBooks) {
+      if (dbGbIds.has(gb.id)) continue
+      const info = gb.volumeInfo
+      merged.push({
+        key: `gb_${gb.id}`,
+        href: `/book/gb_${gb.id}`,
+        title: info.title,
+        author: info.authors?.[0] ?? 'Unknown',
+        year: info.publishedDate?.slice(0, 4),
+        genre: info.categories?.[0]?.split('/')[0].trim().toLowerCase(),
+        cover: cleanCover(info.imageLinks?.thumbnail) ?? undefined,
+        isInDB: false,
+        gbBook: gb,
+      })
+    }
+
+    setResults(merged)
     setLoading(false)
   }
 
@@ -92,9 +160,10 @@ function SearchInner() {
     }
   }
 
-  async function addToShelf(book: GBBook, status: ShelfStatus) {
-    setAdding(book.id)
-    const info = book.volumeInfo
+  async function addToShelf(result: BookResult, status: ShelfStatus) {
+    if (!result.gbBook) return
+    setAdding(result.key)
+    const info = result.gbBook.volumeInfo
     const isbn = info.industryIdentifiers?.find(i => i.type === 'ISBN_13')?.identifier
       ?? info.industryIdentifiers?.find(i => i.type === 'ISBN_10')?.identifier
 
@@ -105,7 +174,7 @@ function SearchInner() {
         book: {
           title: info.title,
           author: info.authors?.[0] ?? 'Unknown',
-          google_books_id: book.id,
+          google_books_id: result.gbBook.id,
           cover_image: cleanCover(info.imageLinks?.thumbnail) ?? null,
           synopsis: info.description ?? null,
           genre: info.categories?.[0]?.split('/')[0].trim().toLowerCase() ?? null,
@@ -116,7 +185,7 @@ function SearchInner() {
         status,
       }),
     })
-    if (res.ok) setAdded(prev => ({ ...prev, [book.id]: status }))
+    if (res.ok) setAdded(prev => ({ ...prev, [result.key]: status }))
     else {
       const err = await res.json()
       if (err.error === 'Not authenticated') window.location.href = '/auth/login'
@@ -196,68 +265,76 @@ function SearchInner() {
         )}
       </div>
 
-      {/* Book results */}
+      {/* Results */}
       <div className="flex flex-col gap-4">
-        {bookResults.map(book => {
-          const info = book.volumeInfo
-          const cover = cleanCover(info.imageLinks?.thumbnail)
-          const addedStatus = added[book.id]
-          const isAdding = adding === book.id
+        {results.map(result => {
+          const addedStatus = added[result.key]
+          const isAdding = adding === result.key
 
           return (
-            <div key={book.id} className="flex gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <Link href={`/book/gb_${book.id}?from=${encodeURIComponent(currentSearchUrl)}`} className="w-16 shrink-0">
+            <div key={result.key} className="flex gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <Link href={`${result.href}?from=${encodeURIComponent(currentSearchUrl)}`} className="w-16 shrink-0">
                 <div className="aspect-[2/3] relative bg-gray-800 rounded-lg overflow-hidden hover:opacity-80 transition-opacity">
-                  {cover ? (
-                    <Image src={cover} alt={info.title} fill className="object-cover" sizes="64px" unoptimized />
+                  {result.cover ? (
+                    <Image src={result.cover} alt={result.title} fill className="object-cover" sizes="64px" unoptimized />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-1">{info.title}</div>
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-1">{result.title}</div>
                   )}
                 </div>
               </Link>
 
               <div className="flex-1 min-w-0">
-                <Link
-                  href={`/book/gb_${book.id}?from=${encodeURIComponent(currentSearchUrl)}`}
-                  className="font-semibold text-white leading-tight hover:text-violet-300 transition-colors line-clamp-2"
-                >
-                  {info.title}
-                </Link>
-                {info.authors?.[0] && <p className="text-sm text-gray-400 mt-0.5">{info.authors[0]}</p>}
-                {info.publishedDate && <p className="text-xs text-gray-600 mt-0.5">{info.publishedDate.slice(0, 4)}</p>}
-                {info.categories?.[0] && <p className="text-xs text-gray-600">{info.categories[0]}</p>}
-
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  {addedStatus ? (
-                    <span className="text-xs text-violet-400 font-medium py-1.5">
-                      ✓ Added to {addedStatus.replace(/_/g, ' ')}
+                <div className="flex items-start gap-2">
+                  <Link
+                    href={`${result.href}?from=${encodeURIComponent(currentSearchUrl)}`}
+                    className="font-semibold text-white leading-tight hover:text-violet-300 transition-colors line-clamp-2"
+                  >
+                    {result.title}
+                  </Link>
+                  {result.isInDB && (
+                    <span className="shrink-0 text-[10px] bg-violet-900/50 text-violet-300 border border-violet-700/50 px-1.5 py-0.5 rounded-full mt-0.5">
+                      Special editions
                     </span>
-                  ) : (
-                    <>
-                      {(['want_to_read', 'reading', 'read'] as ShelfStatus[]).map(status => (
-                        <button
-                          key={status}
-                          disabled={isAdding}
-                          onClick={() => addToShelf(book, status)}
-                          className="text-xs bg-gray-800 hover:bg-violet-600 disabled:opacity-50 text-gray-300 hover:text-white px-3 py-1.5 rounded-full transition-colors capitalize"
-                        >
-                          {isAdding ? '…' : status.replace(/_/g, ' ')}
-                        </button>
-                      ))}
-                    </>
                   )}
                 </div>
+                {result.author && <p className="text-sm text-gray-400 mt-0.5">{result.author}</p>}
+                {result.year && <p className="text-xs text-gray-600 mt-0.5">{result.year}</p>}
+                {result.genre && <p className="text-xs text-gray-600">{result.genre}</p>}
+
+                {/* Add to shelf — only for Google Books results */}
+                {result.gbBook && (
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    {addedStatus ? (
+                      <span className="text-xs text-violet-400 font-medium py-1.5">
+                        ✓ Added to {addedStatus.replace(/_/g, ' ')}
+                      </span>
+                    ) : (
+                      <>
+                        {(['want_to_read', 'reading', 'read'] as ShelfStatus[]).map(status => (
+                          <button
+                            key={status}
+                            disabled={isAdding}
+                            onClick={() => addToShelf(result, status)}
+                            className="text-xs bg-gray-800 hover:bg-violet-600 disabled:opacity-50 text-gray-300 hover:text-white px-3 py-1.5 rounded-full transition-colors capitalize"
+                          >
+                            {isAdding ? '…' : status.replace(/_/g, ' ')}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      {bookResults.length === 0 && !loading && query && (
+      {results.length === 0 && !loading && query && (
         <p className="text-center text-gray-500 py-16">No results found.</p>
       )}
-      {bookResults.length === 0 && !loading && !query && (
-        <p className="text-center text-gray-500 py-16">Search for any book to add it to your shelves, or click through to see all editions and special variants.</p>
+      {results.length === 0 && !loading && !query && (
+        <p className="text-center text-gray-500 py-16">Search for any book to see all editions and special variants.</p>
       )}
     </div>
   )
