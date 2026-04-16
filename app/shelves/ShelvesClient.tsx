@@ -87,7 +87,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
       : entries.filter(e => e.reading_status === activeShelf)
 
   const grouped = filtered.reduce<Record<string, ShelfEntry[]>>((acc, e) => {
-    const s = resolveShelf(e)
+    const s = activeShelf === 'owned' ? 'owned' : resolveShelf(e)
     if (!s) return acc
     if (!acc[s]) acc[s] = []
     acc[s].push(e)
