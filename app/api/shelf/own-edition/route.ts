@@ -30,8 +30,16 @@ export async function POST(request: Request) {
       .eq('id', existing.id)
     error = updateError
   } else {
-    // Create a new edition-specific row (after the schema migration, multiple
-    // editions of the same book are allowed as long as edition_id differs)
+    // Remove any bare book-level entries (no edition) for this book so it
+    // doesn't appear on both "Want to Read" and "Owned" shelves simultaneously
+    if (owned) {
+      await supabase
+        .from('user_collection')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('book_id', book_id)
+        .is('edition_id', null)
+    }
     const { error: insertError } = await supabase
       .from('user_collection')
       .insert({ user_id: user.id, edition_id, book_id, owned })

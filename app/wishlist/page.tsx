@@ -41,20 +41,40 @@ export default async function WishlistPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Editions I Want</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {wishlist.length} edition{wishlist.length !== 1 ? 's' : ''}
-            {totalValue > 0 && <span className="ml-2 text-pink-400">· ${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} est. value</span>}
-          </p>
-        </div>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-2xl font-bold text-white">My Shelves</h1>
         <Link
           href="/browse"
           className="bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           Browse Editions
         </Link>
+      </div>
+
+      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit mb-8">
+        {[
+          { href: '/shelves', label: 'Shelves', active: false },
+          { href: '/wishlist', label: 'Wish List', active: true },
+          { href: '/lists', label: 'Lists', active: false },
+          { href: '/stats', label: 'Stats', active: false },
+        ].map(tab => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-colors ${
+              tab.active ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-sm text-gray-500">
+          {wishlist.length} edition{wishlist.length !== 1 ? 's' : ''}
+          {totalValue > 0 && <span className="ml-2 text-pink-400">· ${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} est. value</span>}
+        </p>
       </div>
 
       {wishlist.length === 0 ? (

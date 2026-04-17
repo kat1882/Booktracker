@@ -29,9 +29,27 @@ export default async function ListsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-white">My Lists</h1>
+      <h1 className="text-2xl font-bold text-white mb-5">My Shelves</h1>
+
+      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit mb-8">
+        {[
+          { href: '/shelves', label: 'Shelves', active: false },
+          { href: '/wishlist', label: 'Wish List', active: false },
+          { href: '/lists', label: 'Lists', active: true },
+          { href: '/stats', label: 'Stats', active: false },
+        ].map(tab => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-colors ${
+              tab.active ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
       </div>
+
       <ListsClient initialLists={listsWithCounts} />
     </div>
   )

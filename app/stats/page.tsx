@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import StatsClient from './StatsClient'
 
 export default async function StatsPage() {
@@ -79,18 +80,41 @@ export default async function StatsPage() {
   const wantToRead = all.filter(e => e.reading_status === 'want_to_read').length
 
   return (
-    <StatsClient
-      years={years}
-      currentYear={currentYear}
-      monthlyByYear={monthlyByYear}
-      genres={genres}
-      topAuthors={topAuthors}
-      ratingDist={ratingDist}
-      pagesByYear={pagesByYear}
-      totalBooks={read.length}
-      totalPages={totalPages}
-      avgRating={avgRating}
-      wantToRead={wantToRead}
-    />
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      <h1 className="text-2xl font-bold text-white mb-5">My Shelves</h1>
+
+      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit mb-8">
+        {[
+          { href: '/shelves', label: 'Shelves', active: false },
+          { href: '/wishlist', label: 'Wish List', active: false },
+          { href: '/lists', label: 'Lists', active: false },
+          { href: '/stats', label: 'Stats', active: true },
+        ].map(tab => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-colors ${
+              tab.active ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </div>
+
+      <StatsClient
+        years={years}
+        currentYear={currentYear}
+        monthlyByYear={monthlyByYear}
+        genres={genres}
+        topAuthors={topAuthors}
+        ratingDist={ratingDist}
+        pagesByYear={pagesByYear}
+        totalBooks={read.length}
+        totalPages={totalPages}
+        avgRating={avgRating}
+        wantToRead={wantToRead}
+      />
+    </div>
   )
 }

@@ -58,7 +58,7 @@ export default async function ShelvesPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-5">
         <h1 className="text-2xl font-bold text-white">My Shelves</h1>
         <div className="flex gap-2">
           <a
@@ -75,6 +75,26 @@ export default async function ShelvesPage() {
             + Add Book
           </Link>
         </div>
+      </div>
+
+      {/* Sub-navigation */}
+      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit mb-8">
+        {[
+          { href: '/shelves', label: 'Shelves', active: true },
+          { href: '/wishlist', label: 'Wish List', active: false },
+          { href: '/lists', label: 'Lists', active: false },
+          { href: '/stats', label: 'Stats', active: false },
+        ].map(tab => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-colors ${
+              tab.active ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {tab.label}
+          </Link>
+        ))}
       </div>
 
       <ShelvesClient initialEntries={all} stats={stats} />

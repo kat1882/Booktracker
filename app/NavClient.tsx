@@ -33,9 +33,6 @@ export default function NavClient({ isLoggedIn }: { isLoggedIn: boolean }) {
   const authLinks = isLoggedIn
     ? [
         { href: '/shelves', label: 'My Shelves' },
-        { href: '/wishlist', label: 'Wish List' },
-        { href: '/lists', label: 'Lists' },
-        { href: '/stats', label: 'Stats' },
         { href: '/profile', label: 'Profile' },
       ]
     : []
