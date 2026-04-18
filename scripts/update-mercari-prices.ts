@@ -125,7 +125,7 @@ async function run() {
 
     const prices = (items ?? [])
       .map(item => parsePrice(item.priceText))
-      .filter((p): p is number => p !== null && p >= 3 && p <= 1000)
+      .filter((p): p is number => p !== null && p >= 15 && p <= 1000)
 
     if (prices.length < MIN_SALES) {
       noData++

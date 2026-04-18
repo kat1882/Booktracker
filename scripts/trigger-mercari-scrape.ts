@@ -103,7 +103,8 @@ const PAGE_FUNCTION = `async function pageFunction(context) {
 
 function buildMercariUrl(query: string): string {
   // status=sold_out filters for completed (sold) listings
-  return `https://www.mercari.com/search/?keyword=${encodeURIComponent(query)}&status=sold_out`
+  // price_min=15 filters out regular used book noise
+  return `https://www.mercari.com/search/?keyword=${encodeURIComponent(query)}&status=sold_out&price_min=15`
 }
 
 function buildSearchQuery(editionName: string, authorLastName: string): string {
@@ -112,7 +113,8 @@ function buildSearchQuery(editionName: string, authorLastName: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 80)
-  return `${clean} ${authorLastName}`.trim()
+  // Append "special edition" to steer Mercari toward collector listings
+  return `${clean} ${authorLastName} special edition`.trim()
 }
 
 async function triggerApifyRun(startUrls: { url: string; userData: { editionId: string } }[]): Promise<string> {
