@@ -250,8 +250,14 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
                   )}
                   {!isOverride && edition.ebay_price_low && edition.ebay_price_high && (
                     <p className="text-xs text-gray-600 mt-0.5">
-                      ${Number(edition.ebay_price_low).toFixed(0)}–${Number(edition.ebay_price_high).toFixed(0)}
+                      eBay ${Number(edition.ebay_price_low).toFixed(0)}–${Number(edition.ebay_price_high).toFixed(0)}
                       {edition.ebay_sold_count ? ` · ${edition.ebay_sold_count} sales` : ''}
+                    </p>
+                  )}
+                  {!isOverride && edition.mercari_price_low && edition.mercari_price_high && (
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      Mercari ${Number(edition.mercari_price_low).toFixed(0)}–${Number(edition.mercari_price_high).toFixed(0)}
+                      {edition.mercari_sold_count ? ` · ${edition.mercari_sold_count} sales` : ''}
                     </p>
                   )}
                   {valueAge !== null && (
