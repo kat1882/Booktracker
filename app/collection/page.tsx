@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import CollectionValueChart from './CollectionValueChart'
+import UpgradePrompt from './UpgradePrompt'
 
 const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,6 +15,14 @@ export default async function CollectionPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
+
+  const { data: profile } = await supabase
+    .from('user_profile')
+    .select('is_pro')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const isPro = profile?.is_pro ?? false
 
   const { data: collection } = await supabase
     .from('user_collection')
@@ -110,6 +119,8 @@ export default async function CollectionPage() {
     }
     return { date, value: Math.round(total * 100) / 100 }
   })
+
+  if (!isPro) return <UpgradePrompt editionCount={editions.length} />
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">

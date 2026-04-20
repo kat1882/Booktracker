@@ -27,12 +27,14 @@ interface BookMeta {
 }
 
 const STATUSES = [
+  { value: 'owned', label: 'I Own This' },
   { value: 'want_to_read', label: 'Want to Read' },
   { value: 'reading', label: 'Reading' },
   { value: 'read', label: 'Read ✓' },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
+  owned: 'I Own This',
   want_to_read: 'Want to Read',
   reading: 'Reading',
   read: 'Read',
@@ -71,7 +73,8 @@ export default function PublishedEditionsList({
         publisher: edition.publisher,
         year: edition.year,
         cover_url: edition.coverUrl,
-        status,
+        status: status === 'owned' ? null : status,
+        owned: status === 'owned',
       }),
     })
 

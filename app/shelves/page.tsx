@@ -1,7 +1,12 @@
 import { createClient } from '@/lib/supabase-server'
+import { createClient as createAnonClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import ShelvesClient from './ShelvesClient'
+import VaultLayout from './VaultLayout'
+
+const anonSupabase = createAnonClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export const dynamic = 'force-dynamic'
 
@@ -10,15 +15,20 @@ export default async function ShelvesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  const { data: profile } = await supabase.from('user_profile').select('is_pro').eq('id', user.id).maybeSingle()
+  const isPro = profile?.is_pro ?? false
+
   const { data: entries } = await supabase
     .from('user_collection')
     .select(`
-      id, reading_status, owned, rating, date_read, date_started, condition, purchase_price, for_sale, asking_price,
+      id, reading_status, owned, rating, date_read, date_started,
+      condition, purchase_price, purchase_location, purchase_date, notes,
+      for_sale, asking_price,
       book:book_id ( id, title, author, cover_ol_id, open_library_id, google_books_id ),
-      edition:edition_id ( id, edition_name, cover_image, estimated_value, original_retail_price, source:source_id ( name ) )
+      edition:edition_id ( id, edition_name, edition_type, cover_image, estimated_value, original_retail_price, source:source_id ( name ) )
     `)
     .eq('user_id', user.id)
-    .order('date_read', { ascending: false, nullsFirst: false })
+    .order('id', { ascending: false })
 
   const all = (entries ?? []) as unknown as {
     id: string
@@ -29,75 +39,88 @@ export default async function ShelvesPage() {
     date_started: string | null
     condition: string | null
     purchase_price: number | null
+    purchase_location: string | null
+    purchase_date: string | null
+    notes: string | null
     for_sale: boolean
     asking_price: number | null
     book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
-    edition: { id: string; cover_image?: string; edition_name?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
+    edition: { id: string; edition_name: string; edition_type: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
   }[]
 
   const thisYear = new Date().getFullYear()
   const readEntries = all.filter(e => e.reading_status === 'read')
+  const ownedEntries = all.filter(e => e.owned)
+  const signedEntries = ownedEntries.filter(e => e.edition?.edition_type === 'signed')
   const ratings = readEntries.map(e => e.rating).filter((r): r is number => r !== null)
-
-  // Collection value: use estimated_value if available, fall back to original_retail_price
-  const collectionValue = all.reduce((sum, e) => {
-    const val = e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0
-    return sum + Number(val)
-  }, 0)
+  const totalValue = all.reduce((s, e) => s + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0), 0)
+  const totalRetail = all.reduce((s, e) => s + Number(e.edition?.original_retail_price ?? 0), 0)
+  const forSaleValue = all.filter(e => e.for_sale && e.asking_price).reduce((s, e) => s + Number(e.asking_price), 0)
 
   const stats = {
     total: all.length,
+    owned: ownedEntries.length,
+    signed: signedEntries.length,
     read: readEntries.length,
     reading: all.filter(e => e.reading_status === 'reading').length,
     wantToRead: all.filter(e => e.reading_status === 'want_to_read').length,
-    owned: all.filter(e => e.owned).length,
     readThisYear: readEntries.filter(e => e.date_read?.startsWith(String(thisYear))).length,
     avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
-    collectionValue: collectionValue > 0 ? collectionValue : null,
+    totalValue,
+    totalRetail,
+    forSaleValue,
+    collectionValue: totalValue > 0 ? totalValue : null,
   }
 
+  // Price history for chart
+  const editionIds = all.map(e => e.edition?.id).filter(Boolean) as string[]
+  const { data: priceHistory } = editionIds.length > 0
+    ? await anonSupabase
+        .from('edition_price_history')
+        .select('edition_id, price, recorded_at')
+        .in('edition_id', editionIds)
+        .order('recorded_at', { ascending: true })
+    : { data: [] }
+
+  const historyByEdition: Record<string, { price: number; recorded_at: string }[]> = {}
+  for (const row of (priceHistory ?? [])) {
+    if (!historyByEdition[row.edition_id]) historyByEdition[row.edition_id] = []
+    historyByEdition[row.edition_id].push({ price: Number(row.price), recorded_at: row.recorded_at })
+  }
+  const allDates = [...new Set((priceHistory ?? []).map(r => r.recorded_at.slice(0, 10)))].sort()
+  const valueOverTime = allDates.map(date => {
+    let total = 0
+    for (const id of editionIds) {
+      const points = (historyByEdition[id] ?? []).filter(p => p.recorded_at.slice(0, 10) <= date)
+      if (points.length > 0) total += points[points.length - 1].price
+    }
+    return { date, value: Math.round(total * 100) / 100 }
+  })
+
+  // Top gainers for market intel
+  const topGainers = ownedEntries
+    .filter(e => e.edition?.estimated_value && e.edition?.original_retail_price && e.edition.original_retail_price > 0)
+    .map(e => ({
+      id: e.id,
+      title: e.book?.title ?? 'Unknown',
+      source: e.edition?.source?.name ?? null,
+      cover: e.edition?.cover_image ?? null,
+      changePct: ((e.edition!.estimated_value! - e.edition!.original_retail_price!) / e.edition!.original_retail_price!) * 100,
+      changeAbs: e.edition!.estimated_value! - e.edition!.original_retail_price!,
+      editionId: e.edition?.id ?? '',
+    }))
+    .sort((a, b) => b.changePct - a.changePct)
+    .slice(0, 3)
+
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-white">My Shelves</h1>
-        <div className="flex gap-2">
-          <a
-            href="/api/export/collection"
-            download
-            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            ↓ Export CSV
-          </a>
-          <Link
-            href="/search"
-            className="bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            + Add Book
-          </Link>
-        </div>
-      </div>
-
-      {/* Sub-navigation */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit mb-8">
-        {[
-          { href: '/shelves', label: 'Shelves', active: true },
-          { href: '/wishlist', label: 'Wish List', active: false },
-          { href: '/lists', label: 'Lists', active: false },
-          { href: '/stats', label: 'Stats', active: false },
-        ].map(tab => (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-colors ${
-              tab.active ? 'bg-violet-600 text-white' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
-
-      <ShelvesClient initialEntries={all} stats={stats} />
-    </div>
+    <VaultLayout
+      entries={all}
+      stats={stats}
+      recentOwned={ownedEntries.slice(0, 8)}
+      valueOverTime={valueOverTime}
+      topGainers={topGainers}
+      isPro={isPro}
+      userName={user.email?.split('@')[0] ?? 'Collector'}
+    />
   )
 }

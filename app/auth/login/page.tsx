@@ -25,7 +25,7 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-[80vh] px-4">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-white mb-2">Sign in</h1>
-        <p className="text-gray-400 text-sm mb-6">Welcome back to Edition Tracker</p>
+        <p className="text-gray-400 text-sm mb-6">Welcome back to Shelfworth</p>
         <form onSubmit={handleLogin} className="flex flex-col gap-4">
           <input
             type="email" required placeholder="Email" value={email}

@@ -118,7 +118,13 @@ function SearchInner() {
       </div>
 
       {results.length === 0 && !loading && query && (
-        <p className="text-center text-gray-500 py-16">No results found.</p>
+        <div className="text-center py-16">
+          <p className="text-gray-500 mb-3">No results found for &ldquo;{query}&rdquo;.</p>
+          <p className="text-sm text-gray-600 mb-4">This book may not be in our database yet.</p>
+          <Link href="/submit" className="text-violet-400 hover:text-violet-300 text-sm border border-violet-800 hover:border-violet-600 px-4 py-2 rounded-lg transition-colors">
+            Submit a book or edition →
+          </Link>
+        </div>
       )}
       {results.length === 0 && !loading && !query && (
         <p className="text-center text-gray-500 py-16">Search for any book to see all editions and special variants.</p>

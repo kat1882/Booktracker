@@ -16,9 +16,11 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from('user_profile')
-    .select('username, country, joined_at')
+    .select('username, country, joined_at, is_pro')
     .eq('id', user.id)
     .single()
+
+  const isPro = profile?.is_pro ?? false
 
   const { data: collection } = await supabase
     .from('user_collection')
@@ -104,7 +106,7 @@ export default async function ProfilePage() {
         ))}
       </div>
 
-      {collectionValue > 0 && (
+      {isPro && collectionValue > 0 && (
         <div className="bg-gray-900 border border-emerald-900/50 rounded-xl p-4 mb-8 flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-400">Est. collection value</p>

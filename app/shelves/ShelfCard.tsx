@@ -6,12 +6,16 @@ import Link from 'next/link'
 
 interface ShelfEntry {
   id: string
-  reading_status: string
+  reading_status: string | null
+  owned: boolean
   rating: number | null
   date_read: string | null
   date_started: string | null
   condition: string | null
   purchase_price: number | null
+  purchase_location: string | null
+  purchase_date: string | null
+  notes: string | null
   for_sale: boolean
   asking_price: number | null
   book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
@@ -55,10 +59,11 @@ function StarRating({ rating, entryId, onUpdate }: { rating: number | null; entr
   )
 }
 
-export default function ShelfCard({ entry, onUpdate, onRemove }: {
+export default function ShelfCard({ entry, onUpdate, onRemove, onOpenDetails }: {
   entry: ShelfEntry
   onUpdate: (id: string, updates: Record<string, unknown>) => void
   onRemove: (id: string) => void
+  onOpenDetails?: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [priceInput, setPriceInput] = useState('')
@@ -140,6 +145,18 @@ export default function ShelfCard({ entry, onUpdate, onRemove }: {
             <span className="text-xs text-gray-600">Started {formatDate(entry.date_started)}</span>
           )}
         </div>
+
+        {onOpenDetails && (
+          <button
+            onClick={onOpenDetails}
+            className="mt-2 text-xs text-gray-600 hover:text-violet-400 transition-colors flex items-center gap-1"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            {entry.purchase_price || entry.purchase_location || entry.condition ? 'Edit my copy' : 'Add purchase details'}
+          </button>
+        )}
       </div>
 
       {/* Actions menu */}

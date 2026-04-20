@@ -24,9 +24,20 @@ export async function POST(request: Request) {
 
   let error
   if (existing) {
+    const updateData: Record<string, unknown> = { owned }
+    if (owned) {
+      const { data: existingRow } = await supabase
+        .from('user_collection')
+        .select('reading_status')
+        .eq('id', existing.id)
+        .single()
+      if (existingRow?.reading_status === 'want_to_read') {
+        updateData.reading_status = null
+      }
+    }
     const { error: updateError } = await supabase
       .from('user_collection')
-      .update({ owned })
+      .update(updateData)
       .eq('id', existing.id)
     error = updateError
   } else {

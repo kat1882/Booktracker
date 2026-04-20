@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import ShelfCard from './ShelfCard'
+import PurchaseDetailsModal from './PurchaseDetailsModal'
 import Link from 'next/link'
 
 const INITIAL_SHOW = 30
@@ -16,10 +17,13 @@ interface ShelfEntry {
   date_started: string | null
   condition: string | null
   purchase_price: number | null
+  purchase_location: string | null
+  purchase_date: string | null
+  notes: string | null
   for_sale: boolean
   asking_price: number | null
   book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
-  edition: { id: string; cover_image?: string; edition_name?: string; source?: { name: string } } | null
+  edition: { id: string; cover_image?: string; edition_name?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
 }
 
 interface Stats {
@@ -49,10 +53,11 @@ const STATUS_COLORS: Record<string, string> = {
   dnf: 'text-gray-500',
 }
 
-export default function ShelvesClient({ initialEntries, stats }: { initialEntries: ShelfEntry[]; stats: Stats }) {
+export default function ShelvesClient({ initialEntries, stats, isPro }: { initialEntries: ShelfEntry[]; stats: Stats; isPro: boolean }) {
   const [entries, setEntries] = useState<ShelfEntry[]>(initialEntries)
   const [activeShelf, setActiveShelf] = useState<string>('all')
   const [shownCounts, setShownCounts] = useState<Record<string, number>>({})
+  const [detailEntry, setDetailEntry] = useState<ShelfEntry | null>(null)
 
   useEffect(() => {
     setEntries(initialEntries)
@@ -109,6 +114,16 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
 
   return (
     <div>
+      {detailEntry && (
+        <PurchaseDetailsModal
+          entry={detailEntry}
+          onClose={() => setDetailEntry(null)}
+          onUpdate={(id, updates) => {
+            handleUpdate(id, updates)
+            setDetailEntry(prev => prev?.id === id ? { ...prev, ...updates } as ShelfEntry : prev)
+          }}
+        />
+      )}
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
@@ -130,10 +145,19 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
           <p className="text-xs text-gray-500 mt-0.5">Avg rating</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center col-span-2 sm:col-span-1">
-          <p className="text-2xl font-bold text-emerald-400">
-            {stats.collectionValue ? `$${stats.collectionValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
-          </p>
-          <p className="text-xs text-gray-500 mt-0.5">Est. collection value</p>
+          {isPro ? (
+            <>
+              <p className="text-2xl font-bold text-emerald-400">
+                {stats.collectionValue ? `$${stats.collectionValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">Est. collection value</p>
+            </>
+          ) : (
+            <Link href="/upgrade" className="group block">
+              <p className="text-2xl font-bold text-gray-600 group-hover:text-violet-400 transition-colors">$•••</p>
+              <p className="text-xs text-violet-500 mt-0.5 group-hover:text-violet-400 transition-colors">Unlock with Pro →</p>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -179,7 +203,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {visible.map(entry => (
-                  <ShelfCard key={entry.id} entry={entry} onUpdate={handleUpdate} onRemove={handleRemove} />
+                  <ShelfCard key={entry.id} entry={entry} onUpdate={handleUpdate} onRemove={handleRemove} onOpenDetails={entry.owned ? () => setDetailEntry(entry) : undefined} />
                 ))}
               </div>
               {hasMore && (
@@ -210,7 +234,7 @@ export default function ShelvesClient({ initialEntries, stats }: { initialEntrie
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {visible.map(entry => (
-                  <ShelfCard key={entry.id} entry={entry} onUpdate={handleUpdate} onRemove={handleRemove} />
+                  <ShelfCard key={entry.id} entry={entry} onUpdate={handleUpdate} onRemove={handleRemove} onOpenDetails={entry.owned ? () => setDetailEntry(entry) : undefined} />
                 ))}
               </div>
               {hasMore && (

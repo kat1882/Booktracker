@@ -19,6 +19,9 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
+  const { data: profile } = await supabase.from('user_profile').select('is_pro').eq('id', user.id).maybeSingle()
+  if (!profile?.is_pro) return NextResponse.json({ error: 'Pro subscription required' }, { status: 403 })
+
   const { data: entries } = await supabase
     .from('user_collection')
     .select(`
