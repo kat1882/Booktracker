@@ -28,7 +28,7 @@ export default async function CollectionPage() {
       id,
       edition:edition_id (
         id, edition_name, cover_image,
-        original_retail_price, estimated_value, value_updated_at,
+        original_retail_price, estimated_value, value_updated_at, set_size,
         book:book_id ( title, author ),
         source:source_id ( name )
       )
@@ -44,6 +44,7 @@ export default async function CollectionPage() {
       original_retail_price?: number
       estimated_value?: number
       value_updated_at?: string
+      set_size?: number
       book: { title: string; author: string } | null
       source: { name: string } | null
     } | null
@@ -52,18 +53,21 @@ export default async function CollectionPage() {
   const editions = entries.map(e => e.edition).filter((e): e is NonNullable<typeof e> => e !== null)
 
   // Total value
-  const totalValue = editions.reduce((s, e) => s + Number(e.estimated_value ?? e.original_retail_price ?? 0), 0)
+  const totalValue = editions.reduce((s, e) => s + Number(e.estimated_value ?? e.original_retail_price ?? 0) / (e.set_size ?? 1), 0)
   const totalRetail = editions.reduce((s, e) => s + Number(e.original_retail_price ?? 0), 0)
   const valuedEditions = editions.filter(e => e.estimated_value != null)
 
   // Top gainers/losers (need both retail + market price to compare)
   const withBoth = editions
     .filter(e => e.estimated_value != null && e.original_retail_price != null && e.original_retail_price > 0)
-    .map(e => ({
-      ...e,
-      changePct: ((e.estimated_value! - e.original_retail_price!) / e.original_retail_price!) * 100,
-      changeAbs: e.estimated_value! - e.original_retail_price!,
-    }))
+    .map(e => {
+      const perBook = e.estimated_value! / (e.set_size ?? 1)
+      return {
+        ...e,
+        changePct: ((perBook - e.original_retail_price!) / e.original_retail_price!) * 100,
+        changeAbs: perBook - e.original_retail_price!,
+      }
+    })
     .sort((a, b) => b.changePct - a.changePct)
 
   const topGainers = withBoth.slice(0, 5)
@@ -75,7 +79,7 @@ export default async function CollectionPage() {
     const name = e.source?.name ?? 'Unknown'
     if (!bySource[name]) bySource[name] = { count: 0, value: 0 }
     bySource[name].count++
-    bySource[name].value += Number(e.estimated_value ?? e.original_retail_price ?? 0)
+    bySource[name].value += Number(e.estimated_value ?? e.original_retail_price ?? 0) / (e.set_size ?? 1)
   }
   const sourceList = Object.entries(bySource)
     .map(([name, data]) => ({ name, ...data }))

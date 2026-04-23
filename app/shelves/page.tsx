@@ -25,7 +25,7 @@ export default async function ShelvesPage() {
       condition, purchase_price, purchase_location, purchase_date, notes,
       for_sale, asking_price, photos,
       book:book_id ( id, title, author, cover_ol_id, open_library_id, google_books_id ),
-      edition:edition_id ( id, edition_name, edition_type, cover_image, estimated_value, original_retail_price, source:source_id ( name ) )
+      edition:edition_id ( id, edition_name, edition_type, cover_image, estimated_value, original_retail_price, set_size, source:source_id ( name ) )
     `)
     .eq('user_id', user.id)
     .order('id', { ascending: false })
@@ -46,7 +46,7 @@ export default async function ShelvesPage() {
     asking_price: number | null
     photos: string[]
     book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
-    edition: { id: string; edition_name: string; edition_type: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
+    edition: { id: string; edition_name: string; edition_type: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; set_size?: number; source?: { name: string } } | null
   }[]
 
   const thisYear = new Date().getFullYear()
@@ -54,7 +54,10 @@ export default async function ShelvesPage() {
   const ownedEntries = all.filter(e => e.owned)
   const signedEntries = ownedEntries.filter(e => e.edition?.edition_type === 'signed')
   const ratings = readEntries.map(e => e.rating).filter((r): r is number => r !== null)
-  const totalValue = all.reduce((s, e) => s + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0), 0)
+  const totalValue = all.reduce((s, e) => {
+    const raw = Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0)
+    return s + raw / (e.edition?.set_size ?? 1)
+  }, 0)
   const totalRetail = all.reduce((s, e) => s + Number(e.edition?.original_retail_price ?? 0), 0)
   const forSaleValue = all.filter(e => e.for_sale && e.asking_price).reduce((s, e) => s + Number(e.asking_price), 0)
 
@@ -101,15 +104,18 @@ export default async function ShelvesPage() {
   // Top gainers for market intel
   const topGainers = ownedEntries
     .filter(e => e.edition?.estimated_value && e.edition?.original_retail_price && e.edition.original_retail_price > 0)
-    .map(e => ({
-      id: e.id,
-      title: e.book?.title ?? 'Unknown',
-      source: e.edition?.source?.name ?? null,
-      cover: e.edition?.cover_image ?? null,
-      changePct: ((e.edition!.estimated_value! - e.edition!.original_retail_price!) / e.edition!.original_retail_price!) * 100,
-      changeAbs: e.edition!.estimated_value! - e.edition!.original_retail_price!,
-      editionId: e.edition?.id ?? '',
-    }))
+    .map(e => {
+      const perBook = e.edition!.estimated_value! / (e.edition!.set_size ?? 1)
+      return {
+        id: e.id,
+        title: e.book?.title ?? 'Unknown',
+        source: e.edition?.source?.name ?? null,
+        cover: e.edition?.cover_image ?? null,
+        changePct: ((perBook - e.edition!.original_retail_price!) / e.edition!.original_retail_price!) * 100,
+        changeAbs: perBook - e.edition!.original_retail_price!,
+        editionId: e.edition?.id ?? '',
+      }
+    })
     .sort((a, b) => b.changePct - a.changePct)
     .slice(0, 3)
 

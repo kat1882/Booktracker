@@ -69,7 +69,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
 
     anonSupabase
       .from('edition')
-      .select('id, edition_name, cover_image, edition_type, estimated_value, original_retail_price, source:source_id(name)')
+      .select('id, edition_name, cover_image, edition_type, estimated_value, original_retail_price, set_size, source:source_id(name)')
       .eq('book_id', edition.book_id)
       .neq('id', id)
       .order('edition_name')
@@ -98,13 +98,15 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
   const reviews = (reviewsRaw ?? []).map(r => ({ ...r, username: profileMap[r.user_id] ?? 'Unknown' }))
 
   const marketPrice = edition.price_override ?? edition.estimated_value
+  const setSize = edition.set_size ?? 1
   const hasValue = marketPrice != null
   const isOverride = edition.price_override != null
   const valueAge = !isOverride && edition.value_updated_at
     ? Math.floor((Date.now() - new Date(edition.value_updated_at).getTime()) / (1000 * 60 * 60 * 24))
     : null
-  const priceDiff = hasValue && edition.original_retail_price
-    ? ((marketPrice - edition.original_retail_price) / edition.original_retail_price) * 100
+  const perBookValue = hasValue ? marketPrice / setSize : null
+  const priceDiff = perBookValue !== null && edition.original_retail_price
+    ? ((perBookValue - edition.original_retail_price) / edition.original_retail_price) * 100
     : null
 
   const specItems = [
@@ -193,6 +195,11 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
                   {edition.edition_type.replace(/_/g, ' ')}
                 </span>
               )}
+              {setSize > 1 && (
+                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs px-3 py-1 rounded-full">
+                  {setSize}-book set
+                </span>
+              )}
               {book.genre && (
                 <Link
                   href={`/browse?genre=${book.genre}`}
@@ -226,10 +233,12 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
                   {hasValue && (
                     <div>
                       <p className="text-5xl font-black text-white tabular-nums leading-none">
-                        ${Number(marketPrice).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        ${Number(perBookValue).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </p>
                       <p className="text-xs text-slate-500 mt-1">
-                        {isOverride ? 'Market value (pinned)' : 'Est. market value'}
+                        {setSize > 1
+                          ? `Per-book value (vault) · Set price: $${Number(marketPrice).toFixed(0)} ÷ ${setSize}`
+                          : isOverride ? 'Market value (pinned)' : 'Est. market value'}
                       </p>
                     </div>
                   )}
@@ -240,7 +249,7 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
                         <span className="text-sm text-slate-300 font-medium">${Number(edition.original_retail_price).toFixed(2)}</span>
                       </div>
                     )}
-                    {priceDiff !== null && (
+                    {priceDiff !== null && edition.original_retail_price && (
                       <div className={`inline-flex items-center gap-1 text-sm font-bold px-2.5 py-0.5 rounded-full ${priceDiff >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
                         <span>{priceDiff >= 0 ? '▲' : '▼'}</span>
                         <span>{Math.abs(priceDiff).toFixed(0)}% vs retail</span>
@@ -336,7 +345,8 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
             <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-700">
               {otherEditions.map((ed) => {
                 const edSource = ed.source as unknown as { name: string } | null
-                const edPrice = ed.estimated_value ?? ed.original_retail_price
+                const edRaw = ed.estimated_value ?? ed.original_retail_price
+                const edPrice = edRaw != null ? edRaw / ((ed as any).set_size ?? 1) : null
                 return (
                   <div key={ed.id} className="shrink-0 w-40 group">
                     <Link href={`/edition/${ed.id}`} className="block">

@@ -33,7 +33,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   // Build edition search query
   let query = supabase
     .from('edition_search')
-    .select('id, edition_name, cover_image, estimated_value, book_id, book_title, book_author, book_genre, source_name, source_type', { count: 'exact' })
+    .select('id, edition_name, cover_image, estimated_value, set_size, book_id, book_title, book_author, book_genre, source_name, source_type', { count: 'exact' })
     .range(from, to)
 
   if (q) {
@@ -65,7 +65,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   // Trending: top 8 highest-value editions
   const { data: trending } = await supabase
     .from('edition_search')
-    .select('id, edition_name, cover_image, estimated_value, book_id, book_title, book_author, source_name, source_type')
+    .select('id, edition_name, cover_image, estimated_value, set_size, book_id, book_title, book_author, source_name, source_type')
     .not('estimated_value', 'is', null)
     .order('estimated_value', { ascending: false })
     .limit(8)

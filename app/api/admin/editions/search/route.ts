@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q')?.trim() ?? ''
 
-  const selectFields = 'id, edition_name, edition_type, cover_image, original_retail_price, estimated_value, isbn, book:book_id(id, title, author), source:source_id(name)'
+  const selectFields = 'id, edition_name, edition_type, cover_image, original_retail_price, estimated_value, isbn, set_size, book:book_id(id, title, author), source:source_id(name)'
 
   if (!q) {
     const { data } = await anon.from('edition').select(selectFields).order('edition_name').limit(50)

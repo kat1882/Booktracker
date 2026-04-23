@@ -16,7 +16,7 @@ export default async function ProfilePage() {
     supabase.from('user_profile').select('username, country, joined_at, is_pro').eq('id', user.id).single(),
     supabase.from('user_collection').select(`
       id, reading_status, rating, date_read,
-      edition:edition_id ( id, cover_image, edition_name, edition_type, estimated_value, original_retail_price,
+      edition:edition_id ( id, cover_image, edition_name, edition_type, estimated_value, original_retail_price, set_size,
         source:source_id ( name )
       ),
       book:book_id ( title, author )
@@ -40,13 +40,14 @@ export default async function ProfilePage() {
       edition_type?: string
       estimated_value?: number
       original_retail_price?: number
+      set_size?: number
       source?: { name: string }
     } | null
     book: { title: string; author: string } | null
   }[]
 
   const collectionValue = entries.reduce(
-    (sum, e) => sum + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0),
+    (sum, e) => sum + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0) / (e.edition?.set_size ?? 1),
     0
   )
 

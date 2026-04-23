@@ -12,6 +12,7 @@ interface Edition {
   estimated_value: number | null
   price_override: number | null
   isbn: string | null
+  set_size: number
   book: { title: string; author: string } | null
   source: { name: string } | null
 }
@@ -53,6 +54,7 @@ export default function AdminEditionSearch({
       estimated_value: ed.estimated_value ?? undefined,
       price_override: ed.price_override ?? undefined,
       isbn: ed.isbn ?? '',
+      set_size: ed.set_size ?? 1,
     })
     setSaved(null)
   }
@@ -67,6 +69,7 @@ export default function AdminEditionSearch({
     if (form.estimated_value !== undefined) payload.estimated_value = form.estimated_value || null
     if ('price_override' in form) payload.price_override = form.price_override || null
     if (form.isbn !== undefined) payload.isbn = form.isbn || null
+    if (form.set_size !== undefined) payload.set_size = form.set_size ?? 1
 
     const res = await fetch(`/api/admin/editions/${id}`, {
       method: 'PATCH',
@@ -115,6 +118,9 @@ export default function AdminEditionSearch({
                       <span className={ed.price_override ? 'text-amber-400 font-medium' : 'text-emerald-600'}>
                         {ed.price_override ? '📌 Override: ' : 'eBay: '}${displayPrice}
                       </span>
+                    )}
+                    {(ed.set_size ?? 1) > 1 && (
+                      <span className="text-amber-400 font-medium">{ed.set_size}-book set</span>
                     )}
                   </div>
                 </div>
@@ -201,6 +207,18 @@ export default function AdminEditionSearch({
                           </button>
                         )}
                       </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">
+                        Set Size
+                        <span className="text-gray-600 ml-1 font-normal">— books in this set (1 = individual)</span>
+                      </label>
+                      <input
+                        type="number" min="1" step="1"
+                        value={form.set_size ?? 1}
+                        onChange={e => setForm(f => ({ ...f, set_size: parseInt(e.target.value) || 1 }))}
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500"
+                      />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs text-gray-500 mb-1 block">Cover Image URL</label>

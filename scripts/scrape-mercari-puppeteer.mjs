@@ -185,40 +185,38 @@ async function scrapeMercari(browser, url) {
     await page.evaluate(() => window.scrollTo(0, 1200))
     await new Promise(r => setTimeout(r, 1500))
 
-    // Extract prices from individual listing elements in DOM order (most recent first on sold page).
-    // Walk all text nodes so we're immune to Mercari's dynamic class names.
-    const pricesInOrder = await page.evaluate(() => {
+    // Extract {title, price} pairs from listing cards in DOM order (most recent first on sold page).
+    const listings = await page.evaluate(() => {
       const priceRe = /^\$[\d,]+\.\d{2}$/
 
-      // Strategy 1: find item cards by looking for a repeated anchor > img + price sibling pattern
-      // Each sold listing on Mercari is typically an <a> tag wrapping a card with an image and price
+      // Strategy 1: item card anchors — capture both title text and first price found
       const cards = Array.from(document.querySelectorAll('a[href*="/item/"]'))
       if (cards.length >= 2) {
         const results = []
         for (const card of cards) {
-          // Walk all text nodes within this card looking for a price
+          const title = (card.textContent ?? '').replace(/\s+/g, ' ').trim()
           const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT)
           let node
           while ((node = walker.nextNode())) {
             const t = (node.textContent ?? '').trim()
-            if (priceRe.test(t)) { results.push(t); break }
+            if (priceRe.test(t)) { results.push({ title, price: t }); break }
           }
         }
         if (results.length >= 2) return results
       }
 
-      // Strategy 2: walk ALL text nodes in document order, collect prices — preserves recency
+      // Strategy 2: bare price text nodes — no title context available
       const allPrices = []
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
       let node
       while ((node = walker.nextNode())) {
         const t = (node.textContent ?? '').trim()
-        if (priceRe.test(t)) allPrices.push(t)
+        if (priceRe.test(t)) allPrices.push({ title: '', price: t })
       }
       return allPrices
     })
 
-    return pricesInOrder
+    return listings
   } finally {
     await page.close()
   }
@@ -284,10 +282,20 @@ async function run() {
       process.stdout.write(`  [${i + 1}/${batch.length}] ${ed.edition_name.slice(0, 50)}… `)
 
       try {
-        const rawPrices = await scrapeMercari(browser, url)
-        // rawPrices is an ordered array (most recent first) — parse and take up to MAX_RECENT_SALES
-        const allParsed = rawPrices.map(t => parsePrice(t)).filter(p => p !== null)
-        const prices = allParsed.slice(0, MAX_RECENT_SALES)
+        const rawListings = await scrapeMercari(browser, url)
+        // Filter out multi-book set/lot listings before taking the most recent sales
+        const SET_WORDS = /\b(set|lot|trilogy|series|duology|quartet|complete|collection|bundle|all\s+\d|books?\s+\d[–\-]\d|\d\s+book)\b/i
+        const allParsed = rawListings.map(l => parsePrice(l.price)).filter(p => p !== null)
+        const filteredParsed = rawListings
+          .filter(l => !SET_WORDS.test(l.title))
+          .map(l => parsePrice(l.price))
+          .filter(p => p !== null)
+        // Fall back to full pool if filtering leaves too few results
+        const pool = filteredParsed.length >= MIN_SALES ? filteredParsed : allParsed
+        if (filteredParsed.length < MIN_SALES && allParsed.length >= MIN_SALES) {
+          process.stdout.write('(set-filter fallback) ')
+        }
+        const prices = pool.slice(0, MAX_RECENT_SALES)
 
         if (prices.length < MIN_SALES) {
           console.log(`${prices.length} prices (need ${MIN_SALES})`)

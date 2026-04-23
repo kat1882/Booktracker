@@ -11,6 +11,7 @@ type Edition = {
   edition_name: string
   cover_image?: string
   estimated_value?: number
+  set_size?: number
   book_id: string
   book_title: string
   book_author: string
@@ -269,11 +270,16 @@ export default function BrowseView({
                       </h4>
                       <p className="text-slate-500 text-xs line-clamp-1">{ed.book_author}</p>
                       <div className="flex items-center justify-between pt-1.5">
-                        <span className="font-mono text-sm font-medium text-slate-200">
-                          {ed.estimated_value ? fmt(ed.estimated_value) : '—'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-sm font-medium text-slate-200">
+                            {ed.estimated_value ? fmt(ed.estimated_value / (ed.set_size ?? 1)) : '—'}
+                          </span>
+                          {(ed.set_size ?? 1) > 1 && (
+                            <span className="text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded-full">{ed.set_size}×</span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
-                          {ed.estimated_value && ed.estimated_value > 100 && (
+                          {ed.estimated_value && (ed.estimated_value / (ed.set_size ?? 1)) > 100 && (
                             <div className="flex items-center gap-0.5 text-emerald-400 font-mono text-[10px]">
                               <span className="material-symbols-outlined text-[10px]">trending_up</span>
                               High Value
@@ -354,7 +360,7 @@ export default function BrowseView({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-slate-200 group-hover:text-white line-clamp-1">{ed.book_title}</p>
-                            <p className="text-[10px] font-mono text-emerald-400">{ed.estimated_value ? fmt(ed.estimated_value) : '—'}</p>
+                            <p className="text-[10px] font-mono text-emerald-400">{ed.estimated_value ? fmt(ed.estimated_value / (ed.set_size ?? 1)) : '—'}</p>
                           </div>
                           <span className="material-symbols-outlined text-slate-600 text-sm group-hover:text-violet-400 transition-colors">chevron_right</span>
                         </Link>
