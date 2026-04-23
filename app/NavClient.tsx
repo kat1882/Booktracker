@@ -23,7 +23,6 @@ export default function NavClient({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   const publicLinks = [
     { href: '/browse', label: 'Browse' },
-    { href: '/search', label: 'Search' },
     { href: '/boxes', label: 'Monthly Boxes' },
     { href: '/submit', label: 'Submit' },
     { href: '/marketplace', label: 'Marketplace' },

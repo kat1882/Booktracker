@@ -1,9 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { createClient as createAnonClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import Image from 'next/image'
-import CollectionValueChart from './CollectionValueChart'
+import IntelligenceView from './IntelligenceView'
 import UpgradePrompt from './UpgradePrompt'
 
 const anonSupabase = createAnonClient(
@@ -82,8 +80,6 @@ export default async function CollectionPage() {
   const sourceList = Object.entries(bySource)
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.value - a.value)
-  const maxSourceValue = sourceList[0]?.value ?? 1
-
   // Fetch price history for all owned editions
   const editionIds = editions.map(e => e.id)
   const { data: priceHistory } = editionIds.length > 0
@@ -122,137 +118,24 @@ export default async function CollectionPage() {
 
   if (!isPro) return <UpgradePrompt editionCount={editions.length} />
 
+  const featured = withBoth.length > 0
+    ? withBoth.sort((a, b) => (b.estimated_value ?? 0) - (a.estimated_value ?? 0))[0]
+    : editions.find(e => e.estimated_value != null) ?? null
+
+  const userName = user.email?.split('@')[0] ?? 'Collector'
+
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Collection Value</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{editions.length} editions · {valuedEditions.length} with market prices</p>
-        </div>
-        <Link href="/shelves" className="text-sm text-gray-400 hover:text-white transition-colors">← My Shelves</Link>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-        {[
-          {
-            label: 'Est. Market Value',
-            value: totalValue > 0 ? `$${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—',
-            color: 'text-emerald-400',
-          },
-          {
-            label: 'Total Retail Paid',
-            value: totalRetail > 0 ? `$${totalRetail.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—',
-            color: 'text-white',
-          },
-          {
-            label: 'Total Gain/Loss',
-            value: totalValue > 0 && totalRetail > 0
-              ? `${totalValue - totalRetail >= 0 ? '+' : ''}$${(totalValue - totalRetail).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-              : '—',
-            color: totalValue >= totalRetail ? 'text-green-400' : 'text-red-400',
-          },
-          {
-            label: 'Priced Editions',
-            value: `${valuedEditions.length} / ${editions.length}`,
-            color: 'text-gray-300',
-          },
-        ].map(s => (
-          <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Value over time chart */}
-      {valueOverTime.length > 1 && (
-        <div className="mb-8">
-          <CollectionValueChart data={valueOverTime} />
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Top gainers */}
-        {topGainers.length > 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Biggest Gainers</h2>
-            <div className="flex flex-col gap-3">
-              {topGainers.map(e => (
-                <Link key={e.id} href={`/edition/${e.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                  <div className="w-8 h-12 relative bg-gray-800 rounded overflow-hidden shrink-0">
-                    {e.cover_image && <Image src={e.cover_image} alt={e.edition_name} fill className="object-cover" sizes="32px" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-white truncate">{e.book?.title}</p>
-                    <p className="text-xs text-gray-500 truncate">{e.source?.name}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-green-400">+{e.changePct.toFixed(0)}%</p>
-                    <p className="text-xs text-gray-600">+${e.changeAbs.toFixed(0)}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Top losers */}
-        {topLosers.length > 0 && topLosers[0].changePct < 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Biggest Drops</h2>
-            <div className="flex flex-col gap-3">
-              {topLosers.filter(e => e.changePct < 0).map(e => (
-                <Link key={e.id} href={`/edition/${e.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                  <div className="w-8 h-12 relative bg-gray-800 rounded overflow-hidden shrink-0">
-                    {e.cover_image && <Image src={e.cover_image} alt={e.edition_name} fill className="object-cover" sizes="32px" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-white truncate">{e.book?.title}</p>
-                    <p className="text-xs text-gray-500 truncate">{e.source?.name}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-red-400">{e.changePct.toFixed(0)}%</p>
-                    <p className="text-xs text-gray-600">${e.changeAbs.toFixed(0)}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Value by source */}
-      {sourceList.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-8">
-          <h2 className="text-sm font-semibold text-white mb-4">Value by Source</h2>
-          <div className="flex flex-col gap-3">
-            {sourceList.map(s => (
-              <div key={s.name} className="flex items-center gap-3">
-                <div className="w-36 text-xs text-gray-400 truncate shrink-0">{s.name}</div>
-                <div className="flex-1 bg-gray-800 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-600 rounded-full"
-                    style={{ width: `${(s.value / maxSourceValue) * 100}%` }}
-                  />
-                </div>
-                <div className="text-right shrink-0 w-24">
-                  <span className="text-xs text-emerald-400 font-medium">${s.value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                  <span className="text-xs text-gray-600 ml-1">({s.count})</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {editions.length === 0 && (
-        <div className="text-center py-24 text-gray-500">
-          Add editions to your shelves to see your collection value.
-          <br />
-          <Link href="/browse" className="text-violet-400 hover:text-violet-300 text-sm mt-3 inline-block">Browse editions →</Link>
-        </div>
-      )}
-    </div>
+    <IntelligenceView
+      featured={featured}
+      totalValue={totalValue}
+      totalRetail={totalRetail}
+      editionCount={editions.length}
+      valuedCount={valuedEditions.length}
+      topGainers={topGainers}
+      topLosers={topLosers}
+      sourceList={sourceList}
+      valueOverTime={valueOverTime}
+      userName={userName}
+    />
   )
 }

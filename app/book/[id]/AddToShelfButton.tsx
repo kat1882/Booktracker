@@ -2,9 +2,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Status = 'want_to_read' | 'reading' | 'read'
+type Status = 'preordered' | 'want_to_read' | 'reading' | 'read'
 
 const LABELS: Record<Status, string> = {
+  preordered: 'Preordered',
   want_to_read: 'Want to Read',
   reading: 'Reading',
   read: 'Read',

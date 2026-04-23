@@ -28,14 +28,14 @@ export default function WishlistButton({ editionId, initialWishlisted, isLoggedI
     <button
       onClick={toggle}
       disabled={loading}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+      className={`w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 flex flex-col items-center justify-center gap-1 min-h-[72px] ${
         wishlisted
-          ? 'bg-pink-600 text-white hover:bg-pink-700'
-          : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
+          ? 'bg-pink-600 hover:bg-pink-500 text-white shadow-lg shadow-pink-900/30'
+          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-pink-600/50'
       }`}
     >
-      <span>{wishlisted ? '♥' : '♡'}</span>
-      {wishlisted ? 'On Wish List' : 'Want this Edition'}
+      <span className="text-xl">{wishlisted ? '♥' : '♡'}</span>
+      <span>{wishlisted ? 'Wanted' : 'Want this'}</span>
     </button>
   )
 }

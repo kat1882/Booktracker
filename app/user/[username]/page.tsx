@@ -1,162 +1,213 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import CopyLinkButton from './CopyLinkButton'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-export default async function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
+export default async function PublicProfilePage({
+  params,
+}: {
+  params: Promise<{ username: string }>
+}) {
   const { username } = await params
+  const supabase = await createClient()
 
   const { data: profile } = await supabase
     .from('user_profile')
-    .select('id, username, joined_at')
+    .select('id, username, display_name, bio, country, joined_at, is_pro, public_portfolio, show_market_value')
     .eq('username', username)
-    .maybeSingle()
+    .single()
 
   if (!profile) notFound()
 
-  const [{ data: collection }, { data: wishlist }] = await Promise.all([
-    supabase
+  const joinedYear = profile.joined_at ? new Date(profile.joined_at).getFullYear() : new Date().getFullYear()
+  const displayName = profile.display_name || profile.username
+  const initial = displayName[0]?.toUpperCase() ?? '?'
+
+  let entries: any[] = []
+  let collectionValue = 0
+  let signedCount = 0
+  let sourceList: [string, number][] = []
+  let maxSourceCount = 1
+
+  if (profile.public_portfolio) {
+    const { data: collection } = await supabase
       .from('user_collection')
       .select(`
-        id, reading_status, rating,
-        edition:edition_id ( id, cover_image, edition_name, estimated_value, original_retail_price,
-          source:source_id ( name )
-        ),
-        book:book_id ( title, author )
+        id, reading_status, edition_type,
+        edition:edition_id(id, cover_image, edition_name, edition_type, estimated_value, original_retail_price, source:source_id(name)),
+        book:book_id(title, author)
       `)
       .eq('user_id', profile.id)
-      .order('reading_status'),
-    supabase
-      .from('user_wishlist')
-      .select(`
-        edition_id,
-        edition:edition_id ( id, cover_image, edition_name,
-          book:book_id ( title ),
-          source:source_id ( name )
-        )
-      `)
-      .eq('user_id', profile.id)
-      .limit(12),
-  ])
+      .eq('owned', true)
+      .order('id', { ascending: false })
 
-  const entries = (collection ?? []) as unknown as {
-    id: string
-    reading_status: string
-    rating: number | null
-    edition: { id: string; cover_image?: string; edition_name: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
-    book: { title: string; author: string } | null
-  }[]
+    entries = (collection ?? []) as unknown as any[]
 
-  const wishItems = (wishlist ?? []) as unknown as {
-    edition_id: string
-    edition: { id: string; cover_image?: string; edition_name: string; book: { title: string }; source?: { name: string } }
-  }[]
+    if (profile.show_market_value) {
+      collectionValue = entries.reduce(
+        (sum: number, e: any) => sum + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0),
+        0
+      )
+    }
+    signedCount = entries.filter((e: any) => e.edition?.edition_type === 'signed').length
 
-  const read = entries.filter(e => e.reading_status === 'read')
-  const ratings = read.map(e => e.rating).filter((r): r is number => r !== null)
-  const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null
-  const collectionValue = entries.reduce((sum, e) => sum + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0), 0)
-
-  const bySource: Record<string, number> = {}
-  for (const e of entries) {
-    if (!e.edition?.source?.name) continue
-    bySource[e.edition.source.name] = (bySource[e.edition.source.name] ?? 0) + 1
+    const bySource: Record<string, number> = {}
+    for (const e of entries) {
+      const name = e.edition?.source?.name
+      if (!name) continue
+      bySource[name] = (bySource[name] ?? 0) + 1
+    }
+    sourceList = Object.entries(bySource).sort((a, b) => b[1] - a[1])
+    maxSourceCount = sourceList[0]?.[1] ?? 1
   }
-  const topSource = Object.entries(bySource).sort((a, b) => b[1] - a[1])[0]
 
-  const joinedYear = new Date(profile.joined_at).getFullYear()
-  const withCovers = entries.filter(e => e.edition?.cover_image)
+  // Check if viewing user is the owner
+  const { data: { user } } = await supabase.auth.getUser()
+  const isOwner = user?.id === profile.id
+
+  const withCovers = entries.filter((e: any) => e.edition?.cover_image)
+  const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+
+  const stats = [
+    { label: 'Editions', value: entries.length, icon: 'menu_book', color: 'text-violet-400' },
+    ...(profile.show_market_value && collectionValue > 0 ? [{ label: 'Est. Value', value: `$${fmt(collectionValue)}`, icon: 'payments', color: 'text-emerald-400', mono: true }] : []),
+    { label: 'Signed', value: signedCount, icon: 'history_edu', color: 'text-amber-400' },
+    ...(sourceList[0] ? [{ label: 'Top Source', value: sourceList[0][0], icon: 'storefront', color: 'text-blue-400' }] : []),
+  ]
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-16 h-16 rounded-full bg-violet-700 flex items-center justify-center text-2xl font-bold text-white">
-          {profile.username[0].toUpperCase()}
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-white">{profile.username}</h1>
-          <p className="text-sm text-gray-500">
-            Collector since {joinedYear}
-            {topSource && <span> · Mostly <span className="text-violet-400">{topSource[0]}</span></span>}
-          </p>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-        {[
-          { label: 'Editions', value: entries.length },
-          { label: 'Books Read', value: read.length },
-          { label: 'Avg Rating', value: avgRating ? `${avgRating.toFixed(1)} ★` : '—' },
-          { label: 'Est. Value', value: collectionValue > 0 ? `$${collectionValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—' },
-        ].map(stat => (
-          <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-white">{stat.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Collection */}
-      {withCovers.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-lg font-bold text-white mb-4">
-            Collection <span className="text-gray-500 font-normal text-sm ml-1">({entries.length})</span>
-          </h2>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-            {withCovers.slice(0, 32).map(e => (
-              <Link key={e.id} href={`/edition/${e.edition!.id}`} className="group" title={e.book?.title}>
-                <div className="aspect-[2/3] relative bg-gray-800 rounded-lg overflow-hidden">
-                  <Image
-                    src={e.edition!.cover_image!}
-                    alt={e.book?.title ?? ''}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                    sizes="80px"
-                  />
-                  {e.reading_status === 'read' && (
-                    <div className="absolute bottom-0 inset-x-0 bg-violet-600/80 text-white text-center text-[9px] py-0.5">Read</div>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-          {entries.length > 32 && (
-            <p className="text-sm text-gray-600 mt-3 text-center">+{entries.length - 32} more editions</p>
+    <div className="min-h-screen bg-[#0e131f]">
+      {/* Nav bar */}
+      <header className="bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+        <Link href="/" className="text-xl font-black text-slate-100 tracking-tighter hover:text-violet-300 transition-colors">
+          Shelfworth
+        </Link>
+        <div className="flex items-center gap-3">
+          <CopyLinkButton username={username} />
+          {isOwner && (
+            <Link href="/profile" className="px-4 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">edit</span>
+              Edit Profile
+            </Link>
           )}
-        </section>
-      )}
+        </div>
+      </header>
 
-      {/* Wish list */}
-      {wishItems.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold text-white mb-4">Wish List <span className="text-gray-500 font-normal text-sm ml-1">({wishItems.length})</span></h2>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-            {wishItems.map(item => (
-              <Link key={item.edition_id} href={`/edition/${item.edition.id}`} className="group" title={item.edition.book?.title}>
-                <div className="aspect-[2/3] relative bg-gray-800 rounded-lg overflow-hidden ring-1 ring-pink-800/50">
-                  {item.edition.cover_image ? (
-                    <Image src={item.edition.cover_image} alt={item.edition.edition_name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="80px" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-1">{item.edition.book?.title}</div>
-                  )}
-                  <div className="absolute top-1 right-1 text-pink-400 text-xs">♥</div>
+      <main className="max-w-4xl mx-auto px-6 py-10">
+
+        {/* Hero */}
+        <div className="bg-slate-900/60 border border-slate-800/50 rounded-2xl p-8 mb-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-80 h-80 bg-violet-600/10 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl pointer-events-none" />
+          <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            <div className="relative shrink-0">
+              <div className="w-24 h-24 rounded-full bg-violet-700 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-violet-900/60 ring-4 ring-violet-600/30">
+                {initial}
+              </div>
+              {profile.is_pro && (
+                <div className="absolute -bottom-2 -right-2 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide shadow-lg">
+                  Pro
                 </div>
-              </Link>
+              )}
+            </div>
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+              <h1 className="text-3xl font-black tracking-tight text-white mb-0.5">{displayName}</h1>
+              {profile.display_name && (
+                <p className="text-slate-500 text-sm mb-1">@{profile.username}</p>
+              )}
+              <p className="text-slate-400 text-sm">
+                Book Collector · Member since {joinedYear}
+                {profile.country && <span> · {profile.country}</span>}
+              </p>
+              {profile.bio && (
+                <p className="text-slate-300 text-sm mt-3 max-w-md">{profile.bio}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        {profile.public_portfolio && entries.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            {stats.map(s => (
+              <div key={s.label} className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-5">
+                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">{s.label}</p>
+                <p className={`text-2xl font-bold text-white ${(s as any).mono ? 'font-mono' : ''} truncate`}>{s.value}</p>
+              </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
 
-      {entries.length === 0 && wishItems.length === 0 && (
-        <div className="text-center py-16 text-gray-500">This collector hasn&apos;t added anything yet.</div>
-      )}
+        {/* Collection grid */}
+        {profile.public_portfolio ? (
+          withCovers.length > 0 ? (
+            <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6 mb-8">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">Collection</p>
+                  <h2 className="text-lg font-bold text-white">{entries.length} Editions</h2>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                {withCovers.slice(0, 48).map((e: any) => (
+                  <Link key={e.id} href={`/edition/${e.edition.id}`} className="group" title={e.book?.title}>
+                    <div className="aspect-[2/3] relative bg-slate-800 rounded-lg overflow-hidden ring-1 ring-white/5 group-hover:ring-violet-500/50 transition-all duration-200">
+                      <Image
+                        src={e.edition.cover_image}
+                        alt={e.book?.title ?? ''}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="80px"
+                        unoptimized
+                      />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              {entries.length > 48 && (
+                <p className="text-sm text-slate-600 mt-4 text-center">+{entries.length - 48} more editions</p>
+              )}
+            </div>
+          ) : entries.length > 0 ? (
+            <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-8 text-center text-slate-500 mb-8">
+              <span className="material-symbols-outlined text-3xl block mb-2">menu_book</span>
+              <p>{entries.length} editions in collection</p>
+            </div>
+          ) : (
+            <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-12 text-center text-slate-600 mb-8">
+              <span className="material-symbols-outlined text-4xl block mb-3">auto_stories</span>
+              <p>No editions added yet.</p>
+            </div>
+          )
+        ) : (
+          <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-12 text-center text-slate-600 mb-8">
+            <span className="material-symbols-outlined text-4xl block mb-3">lock</span>
+            <p>This collector's shelf is private.</p>
+          </div>
+        )}
+
+        {/* Source breakdown */}
+        {profile.public_portfolio && sourceList.length > 0 && (
+          <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6">
+            <h3 className="font-bold text-white text-sm mb-5">Collection by Source</h3>
+            <div className="space-y-3">
+              {sourceList.slice(0, 8).map(([name, count]) => (
+                <div key={name} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 truncate w-32 shrink-0">{name}</span>
+                  <div className="flex-1 bg-slate-800 rounded-full h-1.5">
+                    <div
+                      className="bg-violet-500 h-1.5 rounded-full"
+                      style={{ width: `${(count / maxSourceCount) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-500 w-5 text-right shrink-0">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </main>
     </div>
   )
 }

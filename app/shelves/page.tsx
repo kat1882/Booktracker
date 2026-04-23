@@ -23,7 +23,7 @@ export default async function ShelvesPage() {
     .select(`
       id, reading_status, owned, rating, date_read, date_started,
       condition, purchase_price, purchase_location, purchase_date, notes,
-      for_sale, asking_price,
+      for_sale, asking_price, photos,
       book:book_id ( id, title, author, cover_ol_id, open_library_id, google_books_id ),
       edition:edition_id ( id, edition_name, edition_type, cover_image, estimated_value, original_retail_price, source:source_id ( name ) )
     `)
@@ -44,6 +44,7 @@ export default async function ShelvesPage() {
     notes: string | null
     for_sale: boolean
     asking_price: number | null
+    photos: string[]
     book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
     edition: { id: string; edition_name: string; edition_type: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
   }[]

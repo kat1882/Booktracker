@@ -46,14 +46,11 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
   const book = edition.book as Record<string, string>
   const source = edition.source as Record<string, string> | null
 
-  // Fetch all related data in parallel
   const [
     { data: priceHistory },
     { data: reviewsRaw },
     { data: otherEditions },
     { data: sameSource },
-    { data: sameType },
-    { data: sameAuthor },
     { data: galleryImages },
   ] = await Promise.all([
     anonSupabase
@@ -70,7 +67,6 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
       .order('created_at', { ascending: false })
       .limit(50),
 
-    // Other editions of same book
     anonSupabase
       .from('edition')
       .select('id, edition_name, cover_image, edition_type, estimated_value, original_retail_price, source:source_id(name)')
@@ -79,33 +75,14 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
       .order('edition_name')
       .limit(20),
 
-    // Similar: same source (different books)
     source?.id ? anonSupabase
       .from('edition')
       .select('id, edition_name, cover_image, estimated_value, book:book_id(title, author)')
       .eq('source_id', source.id)
       .neq('book_id', edition.book_id)
       .not('cover_image', 'is', null)
-      .limit(8) : Promise.resolve({ data: [] }),
+      .limit(12) : Promise.resolve({ data: [] }),
 
-    // Similar: same edition type
-    edition.edition_type ? anonSupabase
-      .from('edition')
-      .select('id, edition_name, cover_image, estimated_value, book:book_id(title, author), source:source_id(name)')
-      .eq('edition_type', edition.edition_type)
-      .neq('book_id', edition.book_id)
-      .not('cover_image', 'is', null)
-      .limit(8) : Promise.resolve({ data: [] }),
-
-    // Similar: same author (different books)
-    book.author ? anonSupabase
-      .from('book')
-      .select('id, title, edition:edition(id, cover_image, edition_name, estimated_value)')
-      .eq('author', book.author)
-      .neq('id', edition.book_id)
-      .limit(8) : Promise.resolve({ data: [] }),
-
-    // Gallery images
     anonSupabase
       .from('edition_image')
       .select('id, image_url, image_type, is_primary, sort_order, uploaded_by')
@@ -120,23 +97,6 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
   const profileMap = Object.fromEntries((reviewProfiles ?? []).map(p => [p.id, p.username]))
   const reviews = (reviewsRaw ?? []).map(r => ({ ...r, username: profileMap[r.user_id] ?? 'Unknown' }))
 
-  const details = [
-    { label: 'Edition Type', value: edition.edition_type?.replace(/_/g, ' ') },
-    { label: 'Source', value: source?.name },
-    { label: 'Release', value: edition.release_month },
-    { label: 'Publisher', value: edition.publisher },
-    { label: 'ISBN', value: edition.isbn },
-    { label: 'SKU', value: edition.sku },
-    { label: 'Print Run', value: edition.print_run_size ? `${edition.print_run_size} copies` : null },
-    { label: 'Cover Artist', value: edition.cover_artist },
-    { label: 'Edge Treatment', value: edition.edge_treatment },
-    { label: 'Binding', value: edition.binding },
-    { label: 'Foiling', value: edition.foiling },
-    { label: 'Signature', value: edition.signature_type },
-    { label: 'Extras', value: edition.extras },
-    { label: 'Original Price', value: edition.original_retail_price ? `$${edition.original_retail_price}` : null },
-  ].filter(d => d.value)
-
   const marketPrice = edition.price_override ?? edition.estimated_value
   const hasValue = marketPrice != null
   const isOverride = edition.price_override != null
@@ -147,298 +107,300 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
     ? ((marketPrice - edition.original_retail_price) / edition.original_retail_price) * 100
     : null
 
-  // Build "same author" editions list from the book join
-  const authorEditions = (sameAuthor ?? []).flatMap((bk: Record<string, unknown>) => {
-    const eds = bk.edition as unknown as { id: string; cover_image: string | null; edition_name: string; estimated_value: number | null }[]
-    return (eds ?? []).slice(0, 1).map(e => ({ ...e, bookTitle: bk.title as string }))
-  }).slice(0, 8)
+  const specItems = [
+    { icon: 'menu_book', label: 'Binding', value: edition.binding },
+    { icon: 'palette', label: 'Cover Artist', value: edition.cover_artist },
+    { icon: 'auto_awesome', label: 'Foiling', value: edition.foiling },
+    { icon: 'format_quote', label: 'Signature', value: edition.signature_type },
+    { icon: 'texture', label: 'Edge Treatment', value: edition.edge_treatment },
+    { icon: 'print', label: 'Print Run', value: edition.print_run_size ? `${edition.print_run_size.toLocaleString()} copies` : null },
+    { icon: 'tag', label: 'ISBN', value: edition.isbn },
+    { icon: 'local_offer', label: 'SKU', value: edition.sku },
+    { icon: 'card_giftcard', label: 'Extras', value: edition.extras },
+    { icon: 'publisher', label: 'Publisher', value: edition.publisher },
+  ].filter(s => s.value)
+
+  const pubYear = book.original_pub_date ? new Date(book.original_pub_date).getFullYear() : null
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/browse" className="text-sm text-gray-400 hover:text-white transition-colors">
-          ← Back to browse
-        </Link>
-        {edition.release_month && (
-          <Link
-            href={`/boxes?month=${encodeURIComponent(edition.release_month)}`}
-            className="text-sm text-violet-400 hover:text-violet-300 transition-colors"
-          >
-            View all {edition.release_month} editions →
-          </Link>
-        )}
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* Breadcrumb */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-2">
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Link href="/browse" className="hover:text-slate-300 transition-colors">Browse</Link>
+          <span>/</span>
+          <Link href={`/browse?genre=${book.genre ?? ''}`} className="hover:text-slate-300 transition-colors capitalize">{book.genre ?? 'Books'}</Link>
+          <span>/</span>
+          <span className="text-slate-400 truncate">{book.title}</span>
+        </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        {/* Cover + gallery */}
-        <div className="w-full md:w-56 shrink-0">
-          <EditionGallery
-            editionId={id}
-            coverImage={edition.cover_image}
-            initialImages={(galleryImages ?? []) as any}
-            isLoggedIn={!!user}
-            currentUserId={user?.id ?? null}
-          />
-        </div>
+      {/* Hero */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
 
-        {/* Info */}
-        <div className="flex-1">
-          <div className="mb-1">
-            {source && (
-              <span className="text-xs text-violet-400 font-medium uppercase tracking-wider">{source.name}</span>
+          {/* Cover — sticky on desktop */}
+          <div className="lg:sticky lg:top-24 lg:self-start w-full lg:w-72 shrink-0">
+            <div className="group relative mx-auto w-56 lg:w-full">
+              {/* Glow behind cover */}
+              {edition.cover_image && (
+                <div className="absolute inset-0 rounded-2xl blur-2xl opacity-30 scale-90 translate-y-4 bg-violet-600 pointer-events-none" />
+              )}
+              <div className="relative rotate-1 group-hover:rotate-0 transition-transform duration-500 ease-out shadow-2xl rounded-xl overflow-hidden aspect-[2/3]">
+                <EditionGallery
+                  editionId={id}
+                  coverImage={edition.cover_image}
+                  initialImages={(galleryImages ?? []) as any}
+                  isLoggedIn={!!user}
+                  currentUserId={user?.id ?? null}
+                />
+              </div>
+            </div>
+
+            {/* Pricing source pills under cover on desktop */}
+            {hasValue && (
+              <div className="hidden lg:flex flex-wrap gap-2 mt-5 justify-center">
+                {edition.mercari_sold_count && (
+                  <span className="text-[11px] bg-slate-800 text-slate-400 border border-slate-700 px-2.5 py-1 rounded-full">
+                    Mercari · {edition.mercari_sold_count} sales
+                  </span>
+                )}
+                {edition.ebay_sold_count && (
+                  <span className="text-[11px] bg-slate-800 text-slate-400 border border-slate-700 px-2.5 py-1 rounded-full">
+                    eBay · {edition.ebay_sold_count} sales
+                  </span>
+                )}
+                {valueAge !== null && (
+                  <span className="text-[11px] bg-slate-800 text-slate-400 border border-slate-700 px-2.5 py-1 rounded-full">
+                    Updated {valueAge === 0 ? 'today' : `${valueAge}d ago`}
+                  </span>
+                )}
+              </div>
             )}
           </div>
-          <Link href={`/book/${edition.book_id}`} className="text-2xl font-bold text-white mb-1 hover:text-violet-300 transition-colors block">
-            {book.title}
-          </Link>
-          <p className="text-gray-400 mb-1">by {book.author}</p>
-          {book.series_name && (
-            <p className="text-sm text-gray-500 mb-4">{book.series_name}{book.series_number ? ` #${book.series_number}` : ''}</p>
-          )}
-          {book.genre && (
-            <Link
-              href={`/browse?genre=${book.genre}`}
-              className="inline-block bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full mb-4 hover:bg-gray-700 capitalize"
-            >
-              {book.genre}
+
+          {/* Right — info panel */}
+          <div className="flex-1 min-w-0">
+            {/* Source + type badge */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {source && (
+                <span className="bg-violet-600/20 text-violet-300 border border-violet-500/30 text-xs font-semibold px-3 py-1 rounded-full">
+                  {source.name}
+                </span>
+              )}
+              {edition.edition_type && (
+                <span className="bg-slate-800 text-slate-400 border border-slate-700 text-xs px-3 py-1 rounded-full capitalize">
+                  {edition.edition_type.replace(/_/g, ' ')}
+                </span>
+              )}
+              {book.genre && (
+                <Link
+                  href={`/browse?genre=${book.genre}`}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-300 border border-slate-700 text-xs px-3 py-1 rounded-full capitalize transition-colors"
+                >
+                  {book.genre}
+                </Link>
+              )}
+            </div>
+
+            {/* Title + edition name */}
+            <Link href={`/book/${edition.book_id}`} className="group block mb-1">
+              <h1 className="text-3xl lg:text-4xl font-extrabold text-white group-hover:text-violet-300 transition-colors leading-tight">
+                {book.title}
+              </h1>
             </Link>
-          )}
-
-          <h2 className="text-lg font-semibold text-white mb-4">{edition.edition_name}</h2>
-
-          {/* Shelf + wishlist + list buttons */}
-          <div className="mb-6 flex flex-col gap-3">
-            <OwnedButton
-              editionId={id}
-              bookId={edition.book_id}
-              initialOwned={isOwned}
-              isLoggedIn={!!user}
-            />
-            <AddEditionToShelfButton
-              editionId={id}
-              bookId={edition.book_id}
-              initialStatus={shelfStatus}
-              isLoggedIn={!!user}
-            />
-            <WishlistButton
-              editionId={id}
-              initialWishlisted={isWishlisted}
-              isLoggedIn={!!user}
-            />
-            <AddToListButton editionId={id} isLoggedIn={!!user} />
-          </div>
-
-          {/* Price card */}
-          {(hasValue || edition.original_retail_price) && (
-            <div className="flex gap-3 mb-6">
-              {edition.original_retail_price && (
-                <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-center">
-                  <p className="text-xs text-gray-500 mb-1">Original Retail</p>
-                  <p className="text-lg font-bold text-white">${Number(edition.original_retail_price).toFixed(2)}</p>
-                </div>
-              )}
-              {hasValue && (
-                <div className={`bg-gray-900 border rounded-xl px-4 py-3 text-center ${isOverride ? 'border-amber-700/60' : 'border-gray-800'}`}>
-                  <p className="text-xs text-gray-500 mb-1">
-                    {isOverride ? '📌 Market Value' : 'Est. Market Value'}
-                  </p>
-                  <p className="text-lg font-bold text-white">${Number(marketPrice).toFixed(2)}</p>
-                  {priceDiff !== null && (
-                    <p className={`text-xs mt-0.5 font-medium ${priceDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {priceDiff >= 0 ? '▲' : '▼'} {Math.abs(priceDiff).toFixed(0)}% vs retail
-                    </p>
-                  )}
-                  {!isOverride && edition.ebay_price_low && edition.ebay_price_high && (
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      eBay ${Number(edition.ebay_price_low).toFixed(0)}–${Number(edition.ebay_price_high).toFixed(0)}
-                      {edition.ebay_sold_count ? ` · ${edition.ebay_sold_count} sales` : ''}
-                    </p>
-                  )}
-                  {!isOverride && edition.mercari_price_low && edition.mercari_price_high && (
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      Mercari ${Number(edition.mercari_price_low).toFixed(0)}–${Number(edition.mercari_price_high).toFixed(0)}
-                      {edition.mercari_sold_count ? ` · ${edition.mercari_sold_count} sales` : ''}
-                    </p>
-                  )}
-                  {valueAge !== null && (
-                    <p className="text-xs text-gray-700 mt-0.5">Updated {valueAge === 0 ? 'today' : `${valueAge}d ago`}</p>
-                  )}
-                </div>
+            <p className="text-violet-400 font-semibold text-lg mb-1">{edition.edition_name}</p>
+            <div className="flex items-center gap-3 text-slate-400 text-sm mb-2">
+              <span>by <span className="text-slate-300">{book.author}</span></span>
+              {pubYear && <><span className="text-slate-700">·</span><span>{pubYear}</span></>}
+              {book.series_name && (
+                <><span className="text-slate-700">·</span><span className="truncate">{book.series_name}{book.series_number ? ` #${book.series_number}` : ''}</span></>
               )}
             </div>
-          )}
 
-          {/* Price history chart */}
-          {priceHistory && priceHistory.length > 0 && (
-            <div className="mb-6">
-              <PriceChart points={priceHistory.map(p => ({ price: Number(p.price), recorded_at: p.recorded_at }))} />
-            </div>
-          )}
-
-          {/* Detail grid */}
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 mb-6">
-            {details.map(d => (
-              <div key={d.label}>
-                <dt className="text-xs text-gray-500 uppercase tracking-wide">{d.label}</dt>
-                <dd className="text-sm text-gray-200 capitalize">{d.value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          {/* Notes */}
-          {edition.notes && (
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-sm text-gray-400 leading-relaxed">
-              {edition.notes}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Reviews */}
-      <EditionReviews editionId={id} isLoggedIn={!!user} initialReviews={reviews} />
-
-      {/* Other editions of this book */}
-      {otherEditions && otherEditions.length > 0 && (
-        <div className="mt-10 border-t border-gray-800 pt-8">
-          <h2 className="text-lg font-bold text-white mb-1">More editions of {book.title}</h2>
-          <p className="text-sm text-gray-500 mb-5">
-            {otherEditions.length} other special edition{otherEditions.length !== 1 ? 's' : ''} · Select one to compare
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {otherEditions.map((ed) => {
-              const edSource = ed.source as unknown as { name: string } | null
-              const edPrice = ed.estimated_value ?? ed.original_retail_price
-              return (
-                <div key={ed.id} className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors flex flex-col">
-                  <Link href={`/edition/${ed.id}`} className="block">
-                    <div className="aspect-[2/3] relative bg-gray-800">
-                      {ed.cover_image ? (
-                        <Image src={ed.cover_image} alt={ed.edition_name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="200px" />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs text-center p-2">{ed.edition_name}</div>
-                      )}
+            {/* Value Tracker */}
+            {(hasValue || edition.original_retail_price) && (
+              <div className="mt-5 mb-6 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Value Tracker</p>
+                <div className="flex items-end gap-5 flex-wrap">
+                  {hasValue && (
+                    <div>
+                      <p className="text-5xl font-black text-white tabular-nums leading-none">
+                        ${Number(marketPrice).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {isOverride ? 'Market value (pinned)' : 'Est. market value'}
+                      </p>
                     </div>
-                    <div className="p-3">
-                      {edSource && <p className="text-xs text-violet-400 font-medium">{edSource.name}</p>}
-                      <p className="text-xs text-gray-300 mt-0.5 line-clamp-2">{ed.edition_name}</p>
-                      {edPrice && <p className="text-xs text-emerald-400 mt-1">${Number(edPrice).toFixed(0)}</p>}
-                    </div>
-                  </Link>
-                  {/* Compare link */}
-                  <div className="px-3 pb-3 mt-auto">
-                    <Link
-                      href={`/compare?a=${id}&b=${ed.id}`}
-                      className="block w-full text-center text-xs text-gray-500 hover:text-violet-400 border border-gray-800 hover:border-violet-600 rounded-lg py-1.5 transition-colors"
-                    >
-                      ⚖️ Compare
-                    </Link>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    {edition.original_retail_price && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">Retail</span>
+                        <span className="text-sm text-slate-300 font-medium">${Number(edition.original_retail_price).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {priceDiff !== null && (
+                      <div className={`inline-flex items-center gap-1 text-sm font-bold px-2.5 py-0.5 rounded-full ${priceDiff >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        <span>{priceDiff >= 0 ? '▲' : '▼'}</span>
+                        <span>{Math.abs(priceDiff).toFixed(0)}% vs retail</span>
+                      </div>
+                    )}
+                    {edition.mercari_price_low && edition.mercari_price_high && (
+                      <p className="text-xs text-slate-500">
+                        Mercari range: ${Number(edition.mercari_price_low).toFixed(0)}–${Number(edition.mercari_price_high).toFixed(0)}
+                      </p>
+                    )}
+                    {edition.ebay_price_low && edition.ebay_price_high && (
+                      <p className="text-xs text-slate-500">
+                        eBay range: ${Number(edition.ebay_price_low).toFixed(0)}–${Number(edition.ebay_price_high).toFixed(0)}
+                      </p>
+                    )}
                   </div>
                 </div>
-              )
-            })}
+
+                {priceHistory && priceHistory.length > 1 && (
+                  <div className="mt-4 pt-4 border-t border-slate-800">
+                    <PriceChart points={priceHistory.map(p => ({ price: Number(p.price), recorded_at: p.recorded_at }))} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Hub — 2×2 grid */}
+            <div className="mb-6">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Your Collection</p>
+              <div className="grid grid-cols-2 gap-3">
+                <OwnedButton editionId={id} bookId={edition.book_id} initialOwned={isOwned} isLoggedIn={!!user} />
+                <WishlistButton editionId={id} initialWishlisted={isWishlisted} isLoggedIn={!!user} />
+              </div>
+              <div className="mt-3">
+                <AddEditionToShelfButton
+                  editionId={id}
+                  bookId={edition.book_id}
+                  initialStatus={shelfStatus}
+                  isLoggedIn={!!user}
+                />
+              </div>
+              {user && (
+                <div className="mt-2">
+                  <AddToListButton editionId={id} isLoggedIn={!!user} />
+                </div>
+              )}
+            </div>
+
+            {/* Release info */}
+            {edition.release_month && (
+              <Link
+                href={`/boxes?month=${encodeURIComponent(edition.release_month)}`}
+                className="inline-flex items-center gap-1.5 text-sm text-violet-400 hover:text-violet-300 transition-colors mb-4"
+              >
+                <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+                View all {edition.release_month} editions →
+              </Link>
+            )}
+
+            {/* Notes */}
+            {edition.notes && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-sm text-slate-400 leading-relaxed mb-4">
+                {edition.notes}
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Similar editions */}
-      {(sameSource?.length || sameType?.length || authorEditions.length) ? (
-        <div className="mt-10 border-t border-gray-800 pt-8 space-y-10">
-          <h2 className="text-lg font-bold text-white -mb-4">You might also like</h2>
-
-          {/* Same source */}
-          {source && sameSource && sameSource.length > 0 && (
-            <SimilarRow
-              label={`More from ${source.name}`}
-              editions={sameSource.map(e => ({
-                id: e.id,
-                cover_image: e.cover_image,
-                edition_name: e.edition_name,
-                estimated_value: e.estimated_value,
-                subtitle: (e.book as unknown as { title: string; author: string })?.title ?? '',
-              }))}
-            />
-          )}
-
-          {/* Same edition type */}
-          {edition.edition_type && sameType && sameType.length > 0 && (
-            <SimilarRow
-              label={`More ${edition.edition_type.replace(/_/g, ' ')} editions`}
-              editions={sameType.map(e => ({
-                id: e.id,
-                cover_image: e.cover_image,
-                edition_name: e.edition_name,
-                estimated_value: e.estimated_value,
-                subtitle: (e.book as unknown as { title: string })?.title ?? '',
-                tag: (e.source as unknown as { name: string })?.name,
-              }))}
-            />
-          )}
-
-          {/* Same author */}
-          {authorEditions.length > 0 && (
-            <SimilarRow
-              label={`More by ${book.author}`}
-              editions={authorEditions.map(e => ({
-                id: e.id,
-                cover_image: e.cover_image,
-                edition_name: e.edition_name,
-                estimated_value: e.estimated_value,
-                subtitle: e.bookTitle,
-              }))}
-            />
-          )}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function SimilarRow({
-  label,
-  editions,
-}: {
-  label: string
-  editions: {
-    id: string
-    cover_image: string | null
-    edition_name: string
-    estimated_value: number | null
-    subtitle?: string
-    tag?: string
-  }[]
-}) {
-  return (
-    <div>
-      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">{label}</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {editions.map(e => (
-          <Link
-            key={e.id}
-            href={`/edition/${e.id}`}
-            className="group bg-gray-900 border border-gray-800 hover:border-violet-500 rounded-xl overflow-hidden transition-colors flex flex-col"
-          >
-            <div className="aspect-[2/3] relative bg-gray-800 overflow-hidden shrink-0">
-              {e.cover_image ? (
-                <Image
-                  src={e.cover_image}
-                  alt={e.edition_name}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-300"
-                  sizes="150px"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-2xl">📚</div>
-              )}
+        {/* Technical Specs Bento */}
+        {specItems.length > 0 && (
+          <div className="mt-10 border-t border-slate-800 pt-8">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">Technical Specs</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {specItems.map(spec => (
+                <div key={spec.label} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 hover:border-slate-700 transition-colors">
+                  <p className="text-xs text-slate-500 mb-1">{spec.label}</p>
+                  <p className="text-sm text-slate-200 font-medium capitalize">{spec.value}</p>
+                </div>
+              ))}
             </div>
-            <div className="p-2">
-              {e.tag && <p className="text-xs text-violet-400 font-medium leading-tight truncate">{e.tag}</p>}
-              {e.subtitle && <p className="text-xs text-gray-400 leading-tight line-clamp-1 mt-0.5">{e.subtitle}</p>}
-              {e.estimated_value && (
-                <p className="text-xs text-emerald-400 mt-1">${Number(e.estimated_value).toFixed(0)}</p>
-              )}
+          </div>
+        )}
+
+        {/* Other editions of this book — horizontal scroll */}
+        {otherEditions && otherEditions.length > 0 && (
+          <div className="mt-10 border-t border-slate-800 pt-8">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-white">More editions of {book.title}</h2>
+                <p className="text-sm text-slate-500">{otherEditions.length} other special edition{otherEditions.length !== 1 ? 's' : ''}</p>
+              </div>
             </div>
-          </Link>
-        ))}
+            <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-700">
+              {otherEditions.map((ed) => {
+                const edSource = ed.source as unknown as { name: string } | null
+                const edPrice = ed.estimated_value ?? ed.original_retail_price
+                return (
+                  <div key={ed.id} className="shrink-0 w-40 group">
+                    <Link href={`/edition/${ed.id}`} className="block">
+                      <div className="aspect-[2/3] relative bg-slate-800 rounded-xl overflow-hidden mb-2 shadow-lg group-hover:-translate-y-1.5 transition-transform duration-300">
+                        {ed.cover_image ? (
+                          <Image src={ed.cover_image} alt={ed.edition_name} fill className="object-cover" sizes="160px" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-xs text-center p-2">{ed.edition_name}</div>
+                        )}
+                        {edPrice && (
+                          <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-emerald-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                            ${Number(edPrice).toFixed(0)}
+                          </div>
+                        )}
+                      </div>
+                      {edSource && <p className="text-xs text-violet-400 font-medium truncate">{edSource.name}</p>}
+                      <p className="text-xs text-slate-300 truncate mt-0.5">{ed.edition_name}</p>
+                    </Link>
+                    <Link
+                      href={`/compare?a=${id}&b=${ed.id}`}
+                      className="block mt-1.5 text-center text-[11px] text-slate-600 hover:text-violet-400 border border-slate-800 hover:border-violet-600 rounded-lg py-1 transition-colors"
+                    >
+                      Compare
+                    </Link>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* More from same source — horizontal scroll */}
+        {sameSource && sameSource.length > 0 && source && (
+          <div className="mt-10 border-t border-slate-800 pt-8">
+            <h2 className="text-lg font-bold text-white mb-1">More from {source.name}</h2>
+            <p className="text-sm text-slate-500 mb-5">Other special editions from this subscription box</p>
+            <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+              {sameSource.map((e) => {
+                const bk = e.book as unknown as { title: string; author: string } | null
+                return (
+                  <Link key={e.id} href={`/edition/${e.id}`} className="shrink-0 w-36 group block">
+                    <div className="aspect-[2/3] relative bg-slate-800 rounded-xl overflow-hidden mb-2 shadow-lg group-hover:-translate-y-1.5 transition-transform duration-300">
+                      {e.cover_image ? (
+                        <Image src={e.cover_image} alt={e.edition_name} fill className="object-cover" sizes="144px" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-2xl">📚</div>
+                      )}
+                      {e.estimated_value && (
+                        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-emerald-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                          ${Number(e.estimated_value).toFixed(0)}
+                        </div>
+                      )}
+                    </div>
+                    {bk && <p className="text-xs text-slate-400 leading-tight line-clamp-2">{bk.title}</p>}
+                    <p className="text-[11px] text-slate-600 truncate mt-0.5">{e.edition_name}</p>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Reviews */}
+        <EditionReviews editionId={id} isLoggedIn={!!user} initialReviews={reviews} />
       </div>
     </div>
   )

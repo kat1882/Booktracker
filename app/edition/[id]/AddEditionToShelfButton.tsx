@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 const STATUSES = [
+  { value: 'preordered', label: 'Preordered' },
   { value: 'want_to_read', label: 'Want to Read' },
   { value: 'reading', label: 'Reading' },
   { value: 'read', label: 'Read' },
@@ -32,16 +33,16 @@ export default function AddEditionToShelfButton({ editionId, bookId, initialStat
   }
 
   return (
-    <div className="flex flex-wrap gap-2 mb-3">
+    <div className="flex flex-wrap gap-2">
       {STATUSES.map(s => (
         <button
           key={s.value}
           disabled={loading}
           onClick={() => handleAdd(s.value)}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
             status === s.value
               ? 'bg-violet-600 text-white'
-              : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
+              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200 border border-slate-700'
           }`}
         >
           {status === s.value ? `✓ ${s.label}` : s.label}

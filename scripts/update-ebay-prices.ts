@@ -41,6 +41,8 @@ const RUN_IDS = cliRuns.length > 0 ? cliRuns : HARDCODED_RUN_IDS
 
 // Minimum sold results required before we trust the price
 const MIN_SALES = 2
+// Only use the most recent N sales — recent prices reflect current market better
+const MAX_RECENT_SALES = 10
 
 interface EbayItem {
   title: string
@@ -84,6 +86,7 @@ function median(values: number[]): number {
     ? sorted[mid]
     : (sorted[mid - 1] + sorted[mid]) / 2
 }
+
 
 async function fetchDataset(runId: string): Promise<DatasetItem[]> {
   const res = await fetch(
@@ -131,7 +134,9 @@ async function run() {
 
     if (!editionId) { noData++; continue }
 
+    // Items are in page order (most recent first on eBay sold listings) — take only the latest N
     const prices = (items ?? [])
+      .slice(0, MAX_RECENT_SALES)
       .map(item => parsePrice(item.priceText))
       .filter((p): p is number => p !== null && p >= 3 && p <= 500)
 
@@ -144,15 +149,30 @@ async function run() {
     const low = Math.min(...prices)
     const high = Math.max(...prices)
 
+    // Only use eBay as estimated_value when no Mercari data exists — Mercari is primary
+    const { data: existing } = await supabase
+      .from('edition')
+      .select('mercari_median')
+      .eq('id', editionId)
+      .single()
+
+    const ebayMed = Math.round(medianPrice * 100) / 100
+    const hasMercari = existing?.mercari_median != null
+
+    const updateFields: Record<string, unknown> = {
+      ebay_median: ebayMed,
+      ebay_price_low: Math.round(low * 100) / 100,
+      ebay_price_high: Math.round(high * 100) / 100,
+      ebay_sold_count: prices.length,
+    }
+    if (!hasMercari) {
+      updateFields.estimated_value = ebayMed
+      updateFields.value_updated_at = new Date().toISOString()
+    }
+
     const { error } = await supabase
       .from('edition')
-      .update({
-        estimated_value: Math.round(medianPrice * 100) / 100,
-        ebay_price_low: Math.round(low * 100) / 100,
-        ebay_price_high: Math.round(high * 100) / 100,
-        ebay_sold_count: prices.length,
-        value_updated_at: new Date().toISOString(),
-      })
+      .update(updateFields)
       .eq('id', editionId)
 
     if (error) {

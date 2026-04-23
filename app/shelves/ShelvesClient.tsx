@@ -107,7 +107,7 @@ export default function ShelvesClient({ initialEntries, stats, isPro }: { initia
     return (
       <div className="text-center py-24">
         <p className="text-gray-500 mb-4">Your shelves are empty.</p>
-        <Link href="/search" className="text-violet-400 hover:text-violet-300">Search for books to add →</Link>
+        <Link href="/browse" className="text-violet-400 hover:text-violet-300">Search for books to add →</Link>
       </div>
     )
   }

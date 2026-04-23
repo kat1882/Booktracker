@@ -13,7 +13,6 @@ export default async function Home() {
     { data: recentEditions },
     { count: editionCount },
     { count: bookCount },
-    { data: sources },
     { data: trending },
   ] = await Promise.all([
     supabase.from('edition').select('id, edition_name, cover_image, book:book_id(title, author), source:source_id(name)')
@@ -27,7 +26,6 @@ export default async function Home() {
       .limit(8),
     supabase.from('edition').select('*', { count: 'exact', head: true }),
     supabase.from('book').select('*', { count: 'exact', head: true }),
-    supabase.from('source').select('id, name, type').order('name'),
     supabase.from('user_collection').select('edition_id').limit(500),
   ])
 
@@ -121,7 +119,7 @@ export default async function Home() {
           {[
             { value: editionCount?.toLocaleString() ?? '0', label: 'Special editions' },
             { value: bookCount?.toLocaleString() ?? '0', label: 'Books tracked' },
-            { value: (sources ?? []).length.toString(), label: 'Sources' },
+            { value: '50+', label: 'Sources tracked' },
             { value: '$3/mo', label: 'Collection estimator' },
           ].map(s => (
             <div key={s.label} className="px-4">
@@ -280,24 +278,6 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ── SOURCES ── */}
-      <section className="border-t border-slate-800/50 bg-slate-900/30 py-12 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <p className="text-xs text-slate-500 mb-6 uppercase tracking-widest font-mono">Sources Tracked</p>
-          <div className="flex flex-wrap justify-center gap-3">
-            {(sources ?? []).map(s => (
-              <Link
-                key={s.id}
-                href={`/browse?source=${encodeURIComponent(s.name)}`}
-                className="px-4 py-2 bg-slate-900 border border-slate-800 hover:border-violet-600 text-slate-400 hover:text-violet-300 text-sm rounded-full transition-colors font-mono"
-              >
-                {s.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── CTA ── */}
       <section className="px-6 py-8 my-12">
         <div className="max-w-5xl mx-auto bg-slate-900 border border-slate-800/50 rounded-3xl px-8 py-20 text-center relative overflow-hidden">
@@ -309,7 +289,7 @@ export default async function Home() {
               <Link href="/auth/signup" className="bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-xl font-bold text-lg transition-colors shadow-xl shadow-violet-900/20">
                 Create Your Free Account
               </Link>
-              <Link href="/browse" className="border border-slate-700 text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-slate-800 transition-colors">
+              <Link href="/how-it-works" className="border border-slate-700 text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-slate-800 transition-colors">
                 See How It Works
               </Link>
             </div>

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import ShelvesClient from './ShelvesClient'
+import LibraryView from './LibraryView'
 import PurchaseDetailsModal from './PurchaseDetailsModal'
 import CollectionValueChart from '../collection/CollectionValueChart'
 
@@ -21,6 +21,7 @@ type ShelfEntry = {
   notes: string | null
   for_sale: boolean
   asking_price: number | null
+  photos: string[]
   book: { id: string; title: string; author: string; cover_ol_id?: string; open_library_id?: string; google_books_id?: string } | null
   edition: { id: string; edition_name: string; edition_type: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; source?: { name: string } } | null
 }
@@ -50,16 +51,6 @@ type Gainer = {
   editionId: string
 }
 
-const SHELF_STATS_COMPAT = (s: Stats) => ({
-  total: s.total,
-  read: s.read,
-  reading: s.reading,
-  wantToRead: s.wantToRead,
-  owned: s.owned,
-  readThisYear: s.readThisYear,
-  avgRating: s.avgRating,
-  collectionValue: s.collectionValue,
-})
 
 const CONDITION_COLORS: Record<string, string> = {
   'Near Mint': 'text-emerald-400 bg-emerald-900/20',
@@ -151,7 +142,7 @@ export default function VaultLayout({
 
         <div className="mt-auto pt-6 border-t border-slate-800/50 space-y-3">
           <Link
-            href="/search"
+            href="/browse"
             className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-sm transition-colors"
           >
             <span className="material-symbols-outlined text-lg">add</span>
@@ -174,7 +165,7 @@ export default function VaultLayout({
             <span className={`text-sm font-semibold cursor-pointer transition-colors ${view === 'library' ? 'text-violet-300 border-b-2 border-violet-500 pb-0.5' : 'text-slate-400 hover:text-white'}`} onClick={() => setView('library')}>Library</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/search" className="hidden lg:flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-full px-4 py-2 text-sm text-slate-500 hover:text-slate-200 hover:border-slate-700 transition-colors w-56">
+            <Link href="/browse" className="hidden lg:flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-full px-4 py-2 text-sm text-slate-500 hover:text-slate-200 hover:border-slate-700 transition-colors w-56">
               <span className="material-symbols-outlined text-sm">search</span>
               Search archives…
             </Link>
@@ -214,9 +205,6 @@ export default function VaultLayout({
                             </span>
                           )}
                         </div>
-                        {stats.totalRetail > 0 && (
-                          <p className="text-xs text-slate-500 mt-1">Retail paid: ${fmt(stats.totalRetail)}</p>
-                        )}
                       </div>
                       {!isPro && (
                         <Link href="/upgrade" className="text-xs bg-violet-900/40 border border-violet-700/50 text-violet-300 px-3 py-1.5 rounded-lg hover:bg-violet-800/40 transition-colors">
@@ -268,7 +256,7 @@ export default function VaultLayout({
                   {recentOwned.length === 0 ? (
                     <div className="text-center py-12 border border-dashed border-slate-800 rounded-xl text-slate-600">
                       <p className="mb-3">No owned editions yet.</p>
-                      <Link href="/search" className="text-violet-400 hover:text-violet-300 text-sm">Browse editions to add →</Link>
+                      <Link href="/browse" className="text-violet-400 hover:text-violet-300 text-sm">Browse editions to add →</Link>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
@@ -301,6 +289,45 @@ export default function VaultLayout({
                     </div>
                   )}
                 </div>
+
+                {/* Preorders */}
+                {localEntries.filter(e => e.reading_status === 'preordered').length > 0 && (
+                  <div className="col-span-12">
+                    <div className="flex justify-between items-center mb-6">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-xl font-bold tracking-tight text-white">Preorders</h3>
+                        <span className="px-2.5 py-1 bg-amber-500/20 text-amber-400 text-xs font-bold rounded-full border border-amber-500/30 uppercase tracking-widest">
+                          {localEntries.filter(e => e.reading_status === 'preordered').length} upcoming
+                        </span>
+                      </div>
+                      <button onClick={() => setView('library')} className="text-violet-400 text-sm font-semibold hover:text-violet-300 transition-colors flex items-center gap-1">
+                        View All <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+                      {localEntries.filter(e => e.reading_status === 'preordered').slice(0, 8).map(entry => {
+                        const coverUrl = entry.edition?.cover_image
+                          ?? (entry.book?.cover_ol_id ? `https://covers.openlibrary.org/b/id/${entry.book.cover_ol_id}-M.jpg` : null)
+                        return (
+                          <div key={entry.id} className="group cursor-pointer" onClick={() => setDetailEntry(entry)}>
+                            <div className="aspect-[2/3] bg-slate-800 rounded-lg mb-3 overflow-hidden shadow-xl shadow-black/40 group-hover:-translate-y-1 transition-transform duration-300 relative ring-1 ring-amber-500/20 group-hover:ring-amber-500/50">
+                              {coverUrl ? (
+                                <Image src={coverUrl} alt={entry.book?.title ?? ''} fill className="object-cover" sizes="120px" unoptimized />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-xs text-center p-2">{entry.book?.title?.slice(0, 20)}</div>
+                              )}
+                              <div className="absolute top-2 right-2">
+                                <span className="bg-amber-500 text-black text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-tight">Pre</span>
+                              </div>
+                            </div>
+                            <p className="font-semibold text-slate-100 text-xs leading-tight truncate group-hover:text-amber-300 transition-colors">{entry.book?.title ?? 'Unknown'}</p>
+                            <p className="text-slate-500 text-[10px] truncate mt-0.5">{entry.book?.author}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Market Intelligence */}
                 <div className="col-span-12 lg:col-span-4 bg-slate-900/60 border border-slate-800/50 rounded-xl p-8">
@@ -348,7 +375,7 @@ export default function VaultLayout({
                         color: 'bg-violet-400 shadow-violet-400/60',
                         label: 'Collection Summary',
                         labelColor: 'text-violet-300',
-                        body: `You own ${stats.owned} edition${stats.owned !== 1 ? 's' : ''} across ${stats.total} tracked books. ${stats.signed > 0 ? `${stats.signed} signed edition${stats.signed !== 1 ? 's' : ''} in your collection.` : ''}`,
+                        body: `You own ${stats.owned} edition${stats.owned !== 1 ? 's' : ''} across ${stats.total} tracked books.${stats.signed > 0 ? ` ${stats.signed} signed edition${stats.signed !== 1 ? 's' : ''} in your collection.` : ''}${localEntries.filter(e => e.reading_status === 'preordered').length > 0 ? ` ${localEntries.filter(e => e.reading_status === 'preordered').length} preorder${localEntries.filter(e => e.reading_status === 'preordered').length !== 1 ? 's' : ''} on the way.` : ''}`,
                         time: 'Current',
                       },
                       {
@@ -388,17 +415,11 @@ export default function VaultLayout({
 
           {/* ── LIBRARY VIEW ── */}
           {view === 'library' && (
-            <div className="px-8 py-10">
-              <div className="mb-8">
-                <p className="text-violet-400 uppercase tracking-[0.2em] text-xs font-bold mb-2 font-mono">My Collection</p>
-                <h1 className="text-4xl font-bold tracking-tight text-white">The Library</h1>
-              </div>
-              <ShelvesClient
-                initialEntries={localEntries}
-                stats={SHELF_STATS_COMPAT(stats)}
-                isPro={isPro}
-              />
-            </div>
+            <LibraryView
+              entries={localEntries}
+              stats={{ totalValue: stats.totalValue, totalRetail: stats.totalRetail, owned: stats.owned }}
+              onOpenDetails={setDetailEntry}
+            />
           )}
 
         </main>
@@ -413,6 +434,10 @@ export default function VaultLayout({
             handleUpdate(id, updates)
             setDetailEntry(prev => prev?.id === id ? { ...prev, ...updates } as ShelfEntry : prev)
           }}
+          onRemove={(id) => {
+            handleRemove(id)
+            setDetailEntry(null)
+          }}
         />
       )}
 
@@ -426,7 +451,7 @@ export default function VaultLayout({
           <span className="material-symbols-outlined" style={{ fontVariationSettings: view === 'library' ? "'FILL' 1" : "'FILL' 0" }}>auto_stories</span>
           <span className="text-[10px] font-bold uppercase">Library</span>
         </button>
-        <Link href="/search" className="w-12 h-12 -mt-8 bg-violet-600 text-white rounded-full shadow-lg shadow-violet-900/40 flex items-center justify-center">
+        <Link href="/browse" className="w-12 h-12 -mt-8 bg-violet-600 text-white rounded-full shadow-lg shadow-violet-900/40 flex items-center justify-center">
           <span className="material-symbols-outlined">add</span>
         </Link>
         <Link href="/collection" className="flex flex-col items-center gap-1 text-slate-500">
