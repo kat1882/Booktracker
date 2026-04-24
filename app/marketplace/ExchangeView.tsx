@@ -269,7 +269,7 @@ export default function ExchangeView({
                             <span className="text-violet-400 text-[10px] truncate">{entry.edition.source.name}</span>
                           )}
                         </div>
-                        <p className="text-slate-600 text-[10px]">by @{entry.seller_username}</p>
+                        <Link href={`/user/${entry.seller_username}`} onClick={e => e.stopPropagation()} className="text-slate-600 hover:text-violet-400 text-[10px] transition-colors">@{entry.seller_username}</Link>
                       </div>
                     </Link>
                   )

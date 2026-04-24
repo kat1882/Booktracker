@@ -267,14 +267,14 @@ export default function ListingView({
                     {sellerUsername[0]?.toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-semibold text-sm">@{sellerUsername}</p>
+                    <Link href={`/user/${sellerUsername}`} className="text-white font-semibold text-sm hover:text-violet-300 transition-colors">@{sellerUsername}</Link>
                     <p className="text-slate-500 text-xs">{[sellerCountry, sellerJoinedYear ? `Member since ${sellerJoinedYear}` : null].filter(Boolean).join(' · ')}</p>
                     {sellerOtherListings > 0 && (
-                      <p className="text-violet-400 text-xs">{sellerOtherListings} other listing{sellerOtherListings !== 1 ? 's' : ''}</p>
+                      <Link href={`/user/${sellerUsername}`} className="text-violet-400 hover:text-violet-300 text-xs transition-colors">{sellerOtherListings} other listing{sellerOtherListings !== 1 ? 's' : ''}</Link>
                     )}
                   </div>
-                  <Link href={`/edition/${edition?.id}`} className="text-slate-500 hover:text-slate-200 transition-colors">
-                    <span className="material-symbols-outlined text-sm">open_in_new</span>
+                  <Link href={`/user/${sellerUsername}`} className="text-slate-500 hover:text-violet-300 transition-colors" title="View profile">
+                    <span className="material-symbols-outlined text-sm">person</span>
                   </Link>
                 </div>
 

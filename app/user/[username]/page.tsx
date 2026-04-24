@@ -35,7 +35,7 @@ export default async function PublicProfilePage({
       .from('user_collection')
       .select(`
         id, reading_status, edition_type,
-        edition:edition_id(id, cover_image, edition_name, edition_type, estimated_value, original_retail_price, source:source_id(name)),
+        edition:edition_id(id, cover_image, edition_name, edition_type, estimated_value, original_retail_price, set_size, source:source_id(name)),
         book:book_id(title, author)
       `)
       .eq('user_id', profile.id)
@@ -46,7 +46,7 @@ export default async function PublicProfilePage({
 
     if (profile.show_market_value) {
       collectionValue = entries.reduce(
-        (sum: number, e: any) => sum + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0),
+        (sum: number, e: any) => sum + Number(e.edition?.estimated_value ?? e.edition?.original_retail_price ?? 0) / (e.edition?.set_size ?? 1),
         0
       )
     }
@@ -62,6 +62,20 @@ export default async function PublicProfilePage({
     maxSourceCount = sourceList[0]?.[1] ?? 1
   }
 
+  // Fetch for-sale listings (always public — anyone can see what someone has for sale)
+  const { data: forSaleRaw } = await supabase
+    .from('user_collection')
+    .select(`
+      id, asking_price, condition, notes, photos,
+      edition:edition_id(id, cover_image, edition_name, source:source_id(name)),
+      book:book_id(id, title, author)
+    `)
+    .eq('user_id', profile.id)
+    .eq('for_sale', true)
+    .not('asking_price', 'is', null)
+    .order('asking_price', { ascending: false })
+  const forSaleListings = (forSaleRaw ?? []) as unknown as any[]
+
   // Check if viewing user is the owner
   const { data: { user } } = await supabase.auth.getUser()
   const isOwner = user?.id === profile.id
@@ -73,7 +87,7 @@ export default async function PublicProfilePage({
     { label: 'Editions', value: entries.length, icon: 'menu_book', color: 'text-violet-400' },
     ...(profile.show_market_value && collectionValue > 0 ? [{ label: 'Est. Value', value: `$${fmt(collectionValue)}`, icon: 'payments', color: 'text-emerald-400', mono: true }] : []),
     { label: 'Signed', value: signedCount, icon: 'history_edu', color: 'text-amber-400' },
-    ...(sourceList[0] ? [{ label: 'Top Source', value: sourceList[0][0], icon: 'storefront', color: 'text-blue-400' }] : []),
+    ...(forSaleListings.length > 0 ? [{ label: 'For Sale', value: forSaleListings.length, icon: 'sell', color: 'text-amber-400' }] : []),
   ]
 
   return (
@@ -183,6 +197,40 @@ export default async function PublicProfilePage({
           <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-12 text-center text-slate-600 mb-8">
             <span className="material-symbols-outlined text-4xl block mb-3">lock</span>
             <p>This collector's shelf is private.</p>
+          </div>
+        )}
+
+        {/* For Sale listings */}
+        {forSaleListings.length > 0 && (
+          <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-amber-400 text-xs font-bold uppercase tracking-widest mb-1">For Sale</p>
+                <h2 className="text-lg font-bold text-white">{forSaleListings.length} Edition{forSaleListings.length !== 1 ? 's' : ''} Listed</h2>
+              </div>
+              <Link href="/marketplace" className="text-xs text-slate-500 hover:text-violet-300 transition-colors">
+                View marketplace →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {forSaleListings.map((l: any) => (
+                <Link key={l.id} href={`/marketplace/${l.id}`} className="group block">
+                  <div className="aspect-[2/3] relative bg-slate-800 rounded-xl overflow-hidden mb-2 shadow-lg group-hover:-translate-y-1 transition-transform duration-200">
+                    {l.edition?.cover_image ? (
+                      <Image src={l.edition.cover_image} alt={l.book?.title ?? ''} fill className="object-cover" sizes="200px" unoptimized />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-xs p-2 text-center">{l.book?.title}</div>
+                    )}
+                    <div className="absolute top-2 left-2 bg-amber-500 text-black text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase">
+                      ${Number(l.asking_price).toFixed(0)}
+                    </div>
+                  </div>
+                  <p className="text-slate-200 text-xs font-semibold line-clamp-1 group-hover:text-violet-300 transition-colors">{l.book?.title}</p>
+                  {l.edition?.source?.name && <p className="text-violet-400 text-[10px] truncate">{l.edition.source.name}</p>}
+                  {l.condition && <p className="text-slate-500 text-[10px]">{l.condition}</p>}
+                </Link>
+              ))}
+            </div>
           </div>
         )}
 
