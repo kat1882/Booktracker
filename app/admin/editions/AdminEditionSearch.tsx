@@ -5,6 +5,7 @@ import Image from 'next/image'
 
 interface Edition {
   id: string
+  book_id: string
   edition_name: string
   edition_type: string | null
   cover_image: string | null
@@ -17,7 +18,7 @@ interface Edition {
   source: { name: string } | null
 }
 
-const EDITION_TYPES = ['subscription_box', 'signed', 'illustrated', 'collectors', 'standard', 'other']
+const EDITION_TYPES = ['subscription_box', 'signed', 'illustrated', 'collectors', 'special_edition', 'standard', 'other']
 
 export default function AdminEditionSearch({
   initialEditions,
@@ -31,7 +32,7 @@ export default function AdminEditionSearch({
   const [query, setQuery] = useState(initialQuery)
   const [editions, setEditions] = useState<Edition[]>(initialEditions)
   const [editing, setEditing] = useState<string | null>(null)
-  const [form, setForm] = useState<Partial<Edition & { source_id: string }>>({})
+  const [form, setForm] = useState<Partial<Edition & { source_id: string; author: string }>>({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -55,12 +56,14 @@ export default function AdminEditionSearch({
       price_override: ed.price_override ?? undefined,
       isbn: ed.isbn ?? '',
       set_size: ed.set_size ?? 1,
+      author: ed.book?.author ?? '',
     })
     setSaved(null)
   }
 
   async function save(id: string) {
     setSaving(true)
+    const ed = editions.find(e => e.id === id)
     const payload: Record<string, unknown> = {}
     if (form.edition_name !== undefined) payload.edition_name = form.edition_name
     if (form.edition_type !== undefined) payload.edition_type = form.edition_type || null
@@ -71,13 +74,32 @@ export default function AdminEditionSearch({
     if (form.isbn !== undefined) payload.isbn = form.isbn || null
     if (form.set_size !== undefined) payload.set_size = form.set_size ?? 1
 
-    const res = await fetch(`/api/admin/editions/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (res.ok) {
-      setEditions(prev => prev.map(e => e.id === id ? { ...e, ...payload } as Edition : e))
+    const saves: Promise<Response>[] = [
+      fetch(`/api/admin/editions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    ]
+
+    // Save author to book if it changed
+    const authorChanged = form.author !== undefined && form.author.trim() && form.author.trim() !== ed?.book?.author
+    if (authorChanged && ed?.book_id) {
+      saves.push(fetch(`/api/admin/books/${ed.book_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author: form.author!.trim() }),
+      }))
+    }
+
+    const [edRes] = await Promise.all(saves)
+    if (edRes.ok) {
+      setEditions(prev => prev.map(e => {
+        if (e.id !== id) return e
+        const updated = { ...e, ...payload } as Edition
+        if (authorChanged && form.author) updated.book = { ...e.book!, author: form.author.trim() }
+        return updated
+      }))
       setSaved(id)
       setEditing(null)
     }
@@ -109,7 +131,7 @@ export default function AdminEditionSearch({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{ed.edition_name}</p>
-                  <p className="text-xs text-gray-500 truncate">{ed.book?.title} — {ed.source?.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{ed.book?.title} by {ed.book?.author} — {ed.source?.name}</p>
                   <div className="flex gap-3 mt-1 text-xs text-gray-600 flex-wrap">
                     {ed.edition_type && <span className="capitalize">{ed.edition_type.replace('_', ' ')}</span>}
                     {ed.isbn && <span>ISBN: {ed.isbn}</span>}
@@ -143,6 +165,17 @@ export default function AdminEditionSearch({
                       <input
                         value={form.edition_name ?? ''}
                         onChange={e => setForm(f => ({ ...f, edition_name: e.target.value }))}
+                        className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">
+                        Author
+                        <span className="text-gray-600 ml-1 font-normal">— updates all editions of this book</span>
+                      </label>
+                      <input
+                        value={form.author ?? ''}
+                        onChange={e => setForm(f => ({ ...f, author: e.target.value }))}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500"
                       />
                     </div>
