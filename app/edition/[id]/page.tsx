@@ -3,6 +3,7 @@ import { createClient as createAnonClient } from '@supabase/supabase-js'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import WishlistButton from './WishlistButton'
 import AddEditionToShelfButton from './AddEditionToShelfButton'
 import EditionReviews from './EditionReviews'
@@ -12,6 +13,37 @@ import EditionGallery from './EditionGallery'
 import OwnedButton from './OwnedButton'
 
 export const dynamic = 'force-dynamic'
+
+const anonMeta = createAnonClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const { data } = await anonMeta
+    .from('edition')
+    .select('edition_name, cover_image, estimated_value, book:book_id(title, author), source:source_id(name)')
+    .eq('id', id)
+    .single()
+  if (!data) return { title: 'Edition · Shelfworth' }
+  const book = data.book as unknown as { title: string; author: string } | null
+  const source = data.source as unknown as { name: string } | null
+  const title = `${book?.title ?? data.edition_name} · Shelfworth`
+  const desc = [
+    data.edition_name,
+    book?.author ? `by ${book.author}` : null,
+    source?.name,
+    data.estimated_value ? `Est. $${Math.round(data.estimated_value)}` : null,
+  ].filter(Boolean).join(' · ')
+  const images = data.cover_image ? [{ url: data.cover_image, width: 400, height: 600, alt: book?.title ?? data.edition_name }] : []
+  return {
+    title,
+    description: desc,
+    openGraph: { title, description: desc, images, type: 'website' },
+    twitter: { card: 'summary_large_image', title, description: desc, images: data.cover_image ? [data.cover_image] : [] },
+  }
+}
 
 const anonSupabase = createAnonClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

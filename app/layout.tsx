@@ -10,7 +10,20 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 
 export const metadata: Metadata = {
   title: "Shelfworth",
-  description: "Track every book you own — from subscription box exclusives to signed editions.",
+  description: "Track every book you own — from subscription box exclusives to signed editions. See what your collection is worth.",
+  openGraph: {
+    title: "Shelfworth",
+    description: "The modern companion for book collectors. Organize your library, track special edition values, and discover what collectors are buying.",
+    siteName: "Shelfworth",
+    type: "website",
+    images: [{ url: "/og-default.png", width: 1200, height: 630, alt: "Shelfworth" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Shelfworth",
+    description: "Track every book you own — from subscription box exclusives to signed editions.",
+    images: ["/og-default.png"],
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

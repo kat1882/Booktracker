@@ -105,9 +105,9 @@ export default async function Home() {
             </div>
             {/* Floating value card */}
             <div className="absolute -bottom-8 -left-8 bg-slate-900 border border-slate-700/50 p-5 rounded-xl shadow-2xl min-w-[200px]">
-              <p className="font-mono text-xs text-violet-400 mb-1.5 uppercase tracking-widest">Collection Value</p>
-              <p className="text-3xl font-bold font-mono tracking-tighter text-white">$1,240</p>
-              <p className="text-emerald-400 text-sm font-mono mt-1">↑ +8.2% this year</p>
+              <p className="font-mono text-xs text-violet-400 mb-1.5 uppercase tracking-widest">Editions Catalogued</p>
+              <p className="text-3xl font-bold font-mono tracking-tighter text-white">{editionCount?.toLocaleString()}</p>
+              <p className="text-emerald-400 text-sm font-mono mt-1">↑ growing weekly</p>
             </div>
           </div>
         </div>

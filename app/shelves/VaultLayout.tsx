@@ -254,9 +254,36 @@ export default function VaultLayout({
                     </button>
                   </div>
                   {recentOwned.length === 0 ? (
-                    <div className="text-center py-12 border border-dashed border-slate-800 rounded-xl text-slate-600">
-                      <p className="mb-3">No owned editions yet.</p>
-                      <Link href="/browse" className="text-violet-400 hover:text-violet-300 text-sm">Browse editions to add →</Link>
+                    <div className="border border-dashed border-slate-800 rounded-xl p-8">
+                      <div className="max-w-lg mx-auto text-center mb-8">
+                        <div className="w-16 h-16 bg-violet-900/30 border border-violet-700/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                          <span className="material-symbols-outlined text-3xl text-violet-400">auto_stories</span>
+                        </div>
+                        <h3 className="text-white font-bold text-lg mb-2">Start building your vault</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed">Add your first special edition to track its value, log purchase details, and see how your collection grows over time.</p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto mb-8">
+                        {[
+                          { step: '1', icon: 'search', title: 'Browse editions', desc: 'Find your book by title, author, or subscription box', href: '/browse' },
+                          { step: '2', icon: 'add_circle', title: 'Add to vault', desc: 'Mark it owned and log what you paid for it', href: '/browse' },
+                          { step: '3', icon: 'trending_up', title: 'Track value', desc: 'Watch your collection grow as market prices update', href: '/browse' },
+                        ].map(s => (
+                          <Link key={s.step} href={s.href} className="group bg-slate-900/60 border border-slate-800 hover:border-violet-600/40 rounded-xl p-5 text-left transition-colors">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">{s.step}</span>
+                              <span className="material-symbols-outlined text-violet-400 text-base">{s.icon}</span>
+                            </div>
+                            <p className="text-white text-sm font-semibold mb-1 group-hover:text-violet-300 transition-colors">{s.title}</p>
+                            <p className="text-slate-500 text-xs leading-relaxed">{s.desc}</p>
+                          </Link>
+                        ))}
+                      </div>
+                      <div className="text-center">
+                        <Link href="/browse" className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition-colors">
+                          <span className="material-symbols-outlined text-base">add</span>
+                          Add Your First Edition
+                        </Link>
+                      </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">

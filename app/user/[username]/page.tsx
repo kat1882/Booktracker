@@ -2,7 +2,28 @@ import { createClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import CopyLinkButton from './CopyLinkButton'
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+  const { username } = await params
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('user_profile')
+    .select('username, display_name, bio, is_pro')
+    .eq('username', username)
+    .single()
+  if (!data) return { title: 'Collector · Shelfworth' }
+  const name = data.display_name || data.username
+  const title = `${name}'s Collection · Shelfworth`
+  const desc = data.bio || `${name} is a book collector on Shelfworth${data.is_pro ? ' (Pro)' : ''}.`
+  return {
+    title,
+    description: desc,
+    openGraph: { title, description: desc, type: 'profile' },
+    twitter: { card: 'summary', title, description: desc },
+  }
+}
 
 export default async function PublicProfilePage({
   params,
