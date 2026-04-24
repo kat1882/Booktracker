@@ -18,9 +18,17 @@ interface Submission {
   notes?: string
   submitter_email?: string
   status: string
+  rejection_reason?: string
+  reviewed_at?: string
 }
 
-export default function ApprovalQueue({ initialSubmissions }: { initialSubmissions: Submission[] }) {
+export default function ApprovalQueue({
+  initialSubmissions,
+  activeStatus,
+}: {
+  initialSubmissions: Submission[]
+  activeStatus: string
+}) {
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
   const [loading, setLoading] = useState<string | null>(null)
   const [rejectionNote, setRejectionNote] = useState<Record<string, string>>({})
@@ -42,23 +50,23 @@ export default function ApprovalQueue({ initialSubmissions }: { initialSubmissio
 
   if (submissions.length === 0) {
     return (
-      <div className="border border-dashed border-gray-800 rounded-xl p-12 text-center text-gray-600 text-sm">
-        No pending submissions.
+      <div className="border border-dashed border-slate-800 rounded-xl p-12 text-center text-slate-600 text-sm">
+        No {activeStatus} submissions.
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {submissions.map(sub => (
-        <div key={sub.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div key={sub.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
           <div className="flex gap-4 p-5">
-            {/* Cover preview */}
-            <div className="w-16 h-24 shrink-0 bg-gray-800 rounded-lg overflow-hidden relative">
+            {/* Cover */}
+            <div className="w-16 h-24 shrink-0 bg-slate-800 rounded-lg overflow-hidden relative">
               {sub.cover_image_url ? (
                 <Image src={sub.cover_image_url} alt={sub.edition_name} fill className="object-cover" sizes="64px" unoptimized />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-gray-700 text-xs text-center p-1">No cover</div>
+                <div className="absolute inset-0 flex items-center justify-center text-slate-700 text-xs text-center p-1">No cover</div>
               )}
             </div>
 
@@ -67,59 +75,72 @@ export default function ApprovalQueue({ initialSubmissions }: { initialSubmissio
               <div className="flex items-start justify-between gap-4 mb-1">
                 <div>
                   <p className="font-semibold text-white">{sub.edition_name}</p>
-                  <p className="text-sm text-gray-400">{sub.book_title} <span className="text-gray-600">by</span> {sub.book_author}</p>
+                  <p className="text-sm text-slate-400">{sub.book_title} <span className="text-slate-600">by</span> {sub.book_author}</p>
                 </div>
-                <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full shrink-0 capitalize">
-                  {sub.edition_type.replace('_', ' ')}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {activeStatus !== 'pending' && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      sub.status === 'approved' ? 'bg-emerald-900/40 text-emerald-400' : 'bg-red-900/40 text-red-400'
+                    }`}>
+                      {sub.status}
+                    </span>
+                  )}
+                  <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full capitalize">
+                    {sub.edition_type?.replace(/_/g, ' ')}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500 mt-2">
-                <span>Source: <span className="text-gray-300">{sub.source_name}</span></span>
-                {sub.release_month && <span>Release: <span className="text-gray-300">{sub.release_month}</span></span>}
-                {sub.original_retail_price && <span>Price: <span className="text-gray-300">£{sub.original_retail_price}</span></span>}
-                {sub.isbn && <span>ISBN: <span className="text-gray-300 font-mono">{sub.isbn}</span></span>}
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500 mt-2">
+                <span>Source: <span className="text-slate-300">{sub.source_name}</span></span>
+                {sub.release_month && <span>Release: <span className="text-slate-300">{sub.release_month}</span></span>}
+                {sub.original_retail_price && <span>Price: <span className="text-slate-300">${sub.original_retail_price}</span></span>}
+                {sub.isbn && <span>ISBN: <span className="text-slate-300 font-mono">{sub.isbn}</span></span>}
               </div>
 
-              {sub.notes && (
-                <p className="text-xs text-gray-500 mt-2 italic">{sub.notes}</p>
-              )}
-
+              {sub.notes && <p className="text-xs text-slate-500 mt-2 italic">{sub.notes}</p>}
               {sub.cover_image_url && (
-                <p className="text-xs text-gray-600 mt-1 truncate">Cover: <a href={sub.cover_image_url} target="_blank" rel="noopener noreferrer" className="text-violet-500 hover:text-violet-400">{sub.cover_image_url}</a></p>
+                <p className="text-xs text-slate-600 mt-1 truncate">
+                  Cover: <a href={sub.cover_image_url} target="_blank" rel="noopener noreferrer" className="text-violet-500 hover:text-violet-400">{sub.cover_image_url}</a>
+                </p>
+              )}
+              {sub.rejection_reason && (
+                <p className="text-xs text-red-400/70 mt-1.5">Reason: {sub.rejection_reason}</p>
               )}
 
-              <p className="text-xs text-gray-600 mt-2">
+              <p className="text-xs text-slate-600 mt-2">
                 Submitted {new Date(sub.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 {sub.submitter_email && <> by {sub.submitter_email}</>}
               </p>
             </div>
           </div>
 
-          {/* Action row */}
-          <div className="border-t border-gray-800 px-5 py-3 flex items-center gap-3">
-            <input
-              type="text"
-              placeholder="Rejection reason (optional)"
-              value={rejectionNote[sub.id] ?? ''}
-              onChange={e => setRejectionNote(prev => ({ ...prev, [sub.id]: e.target.value }))}
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-gray-500"
-            />
-            <button
-              onClick={() => handleDecision(sub.id, 'reject')}
-              disabled={loading === sub.id}
-              className="px-4 py-1.5 rounded-lg text-xs font-medium bg-red-900/40 text-red-400 hover:bg-red-900/60 disabled:opacity-50 transition-colors"
-            >
-              Reject
-            </button>
-            <button
-              onClick={() => handleDecision(sub.id, 'approve')}
-              disabled={loading === sub.id}
-              className="px-4 py-1.5 rounded-lg text-xs font-medium bg-green-900/40 text-green-400 hover:bg-green-900/60 disabled:opacity-50 transition-colors"
-            >
-              {loading === sub.id ? 'Processing…' : 'Approve'}
-            </button>
-          </div>
+          {/* Actions — pending only */}
+          {activeStatus === 'pending' && (
+            <div className="border-t border-slate-800 px-5 py-3 flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="Rejection reason (optional)"
+                value={rejectionNote[sub.id] ?? ''}
+                onChange={e => setRejectionNote(prev => ({ ...prev, [sub.id]: e.target.value }))}
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-slate-500"
+              />
+              <button
+                onClick={() => handleDecision(sub.id, 'reject')}
+                disabled={loading === sub.id}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-red-900/40 text-red-400 hover:bg-red-900/60 disabled:opacity-50 transition-colors"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => handleDecision(sub.id, 'approve')}
+                disabled={loading === sub.id}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/60 disabled:opacity-50 transition-colors"
+              >
+                {loading === sub.id ? 'Processing…' : 'Approve'}
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>

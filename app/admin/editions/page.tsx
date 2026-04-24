@@ -1,50 +1,51 @@
 import { createClient } from '@/lib/supabase-server'
 import { createClient as createAnonClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import AdminShell from '../AdminShell'
 import AdminEditionSearch from './AdminEditionSearch'
 
 const ADMIN_USER_ID = 'd7e5e026-425b-4824-85a5-88d3412b95d3'
+const anon = createAnonClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-const anon = createAnonClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-interface SearchParams { q?: string }
+interface SearchParams { q?: string; field?: string }
 
 export default async function AdminEditionsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || user.id !== ADMIN_USER_ID) redirect('/')
 
-  const { q } = await searchParams
+  const { q, field } = await searchParams
   const search = q?.trim() ?? ''
+  const searchField = field ?? 'edition'
 
   const { data: sources } = await anon.from('source').select('id, name').order('name')
 
-  let editionQuery = anon
-    .from('edition')
-    .select('id, edition_name, edition_type, cover_image, original_retail_price, estimated_value, isbn, book:book_id(title, author), source:source_id(name)')
-    .order('edition_name')
-    .limit(50)
+  const selectFields = 'id, book_id, edition_name, edition_type, cover_image, original_retail_price, estimated_value, price_override, isbn, set_size, publisher, release_month, print_run_size, cover_artist, edge_treatment, binding, foiling, signature_type, extras, notes, sku, mercari_median, ebay_median, value_updated_at, book:book_id(id, title, author), source:source_id(id, name)'
 
-  if (search) editionQuery = editionQuery.ilike('edition_name', `%${search}%`)
+  let query = anon.from('edition').select(selectFields).order('edition_name').limit(60)
 
-  const { data: editions } = await editionQuery
+  if (search) {
+    if (searchField === 'title') {
+      query = query.ilike('book.title', `%${search}%`)
+    } else if (searchField === 'author') {
+      query = query.ilike('book.author', `%${search}%`)
+    } else if (searchField === 'source') {
+      query = query.ilike('source.name', `%${search}%`)
+    } else {
+      query = query.ilike('edition_name', `%${search}%`)
+    }
+  }
+
+  const { data: editions } = await query
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/admin" className="text-sm text-gray-500 hover:text-white transition-colors">← Admin</Link>
-        <h1 className="text-xl font-bold text-white">Edit Editions</h1>
-      </div>
-
+    <AdminShell title="Editions">
       <AdminEditionSearch
-        initialEditions={(editions ?? []) as unknown as Parameters<typeof AdminEditionSearch>[0]['initialEditions']}
+        initialEditions={(editions ?? []) as any}
         sources={(sources ?? []) as { id: string; name: string }[]}
         initialQuery={search}
+        initialField={searchField}
       />
-    </div>
+    </AdminShell>
   )
 }
