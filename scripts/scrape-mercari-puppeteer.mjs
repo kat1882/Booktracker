@@ -22,6 +22,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 const ARGS = process.argv.slice(2)
 const ALL = ARGS.includes('--all')
 const DRY_RUN = ARGS.includes('--dry-run')
+const IS_CI = !!process.env.CI
 const LIMIT = (() => {
   const a = ARGS.find(a => a.startsWith('--limit='))
   return a ? parseInt(a.slice(8)) : 100
@@ -33,6 +34,13 @@ const OFFSET = (() => {
 const EDITION_IDS = (() => {
   const a = ARGS.find(a => a.startsWith('--edition-ids='))
   return a ? a.slice(14).split(',').filter(Boolean) : []
+})()
+// --stale=7 → only re-scrape editions not updated in the last 7 days
+const STALE_DAYS = (() => {
+  const a = ARGS.find(a => a.startsWith('--stale'))
+  if (!a) return null
+  const days = parseInt(a.split('=')[1] ?? '7')
+  return isNaN(days) ? 7 : days
 })()
 
 const MIN_SALES = 2
@@ -241,6 +249,17 @@ async function run() {
       .from('edition')
       .select('id, edition_name, mercari_price_low, book:book_id ( title, author ), source:source_id ( name, type )')
       .in('id', EDITION_IDS))
+  } else if (STALE_DAYS !== null) {
+    // Weekly mode: only editions not updated in the last N days, oldest first
+    const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    ;({ data: editions, error } = await supabase
+      .from('edition')
+      .select('id, edition_name, mercari_price_low, book:book_id ( title, author ), source:source_id ( name, type )')
+      .is('price_override', null)
+      .in('source_id', sourceIds)
+      .or(`value_updated_at.is.null,value_updated_at.lt.${cutoff}`)
+      .order('value_updated_at', { ascending: true, nullsFirst: true })
+      .limit(LIMIT))
   } else {
     ;({ data: editions, error } = await supabase
       .from('edition')
@@ -253,7 +272,7 @@ async function run() {
   if (error) { console.error('DB error:', error.message); process.exit(1) }
 
   const subBoxEditions = editions ?? []
-  const toPrice = ALL || EDITION_IDS.length > 0
+  const toPrice = ALL || EDITION_IDS.length > 0 || STALE_DAYS !== null
     ? subBoxEditions
     : subBoxEditions.filter(e => !e.mercari_price_low)
 
@@ -270,7 +289,10 @@ async function run() {
   }
 
   console.log('Launching browser…')
-  const browser = await puppeteer.launch({ headless: true })
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: IS_CI ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : [],
+  })
 
   let priced = 0, noData = 0, errors = 0
 
