@@ -18,12 +18,12 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || user.id !== ADMIN_USER_ID) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { name, type, website } = await req.json()
+  const { name, type, website, logo_url } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
   const { data, error } = await supabase
     .from('source')
-    .insert({ name: name.trim(), type: type || null, website: website?.trim() || null })
+    .insert({ name: name.trim(), type: type || null, website: website?.trim() || null, logo_url: logo_url?.trim() || null })
     .select()
     .single()
 

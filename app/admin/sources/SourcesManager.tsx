@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 
 interface Source {
@@ -7,6 +8,7 @@ interface Source {
   name: string
   type: string | null
   website: string | null
+  logo_url: string | null
 }
 
 const SOURCE_TYPES = ['subscription_box', 'retail', 'publisher', 'standard', 'other']
@@ -28,12 +30,13 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const [newForm, setNewForm] = useState({ name: '', type: '', website: '' })
+  const [newForm, setNewForm] = useState({ name: '', type: '', website: '', logo_url: '' })
   const [createSaving, setCreateSaving] = useState(false)
+  const [search, setSearch] = useState('')
 
   function startEdit(s: Source) {
     setEditing(s.id)
-    setForm({ name: s.name, type: s.type ?? '', website: s.website ?? '' })
+    setForm({ name: s.name, type: s.type ?? '', website: s.website ?? '', logo_url: s.logo_url ?? '' })
     setSaved(null)
   }
 
@@ -42,10 +45,10 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
     const res = await fetch(`/api/admin/sources/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, type: form.type || null, website: form.website || null }),
+      body: JSON.stringify({ name: form.name, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null }),
     })
     if (res.ok) {
-      setSources(prev => prev.map(s => s.id === id ? { ...s, ...form, type: form.type || null, website: form.website || null } : s))
+      setSources(prev => prev.map(s => s.id === id ? { ...s, ...form, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null } : s))
       setSaved(id)
       setEditing(null)
     }
@@ -58,20 +61,22 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
     const res = await fetch('/api/admin/sources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newForm.name.trim(), type: newForm.type || null, website: newForm.website || null }),
+      body: JSON.stringify({ name: newForm.name.trim(), type: newForm.type || null, website: newForm.website || null, logo_url: newForm.logo_url || null }),
     })
     if (res.ok) {
       const { source } = await res.json()
       setSources(prev => [...prev, source].sort((a, b) => a.name.localeCompare(b.name)))
-      setNewForm({ name: '', type: '', website: '' })
+      setNewForm({ name: '', type: '', website: '', logo_url: '' })
       setCreating(false)
     }
     setCreateSaving(false)
   }
 
+  const filtered = sources.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-slate-500">{sources.length} sources</p>
         <button
           onClick={() => setCreating(v => !v)}
@@ -82,11 +87,22 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
         </button>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-4">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-base">search</span>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search sources…"
+          className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+        />
+      </div>
+
       {/* Create form */}
       {creating && (
         <div className="bg-slate-900 border border-violet-700/40 rounded-xl p-5 mb-5">
           <p className="text-sm font-semibold text-white mb-4">New Source</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <label className="text-xs text-slate-500 mb-1 block">Name *</label>
               <input value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. OwlCrate" className={inp} />
@@ -102,23 +118,33 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
               <label className="text-xs text-slate-500 mb-1 block">Website</label>
               <input value={newForm.website} onChange={e => setNewForm(f => ({ ...f, website: e.target.value }))} placeholder="https://…" className={inp} />
             </div>
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">Logo URL</label>
+              <input value={newForm.logo_url} onChange={e => setNewForm(f => ({ ...f, logo_url: e.target.value }))} placeholder="https://…/logo.png" className={inp} />
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={handleCreate} disabled={createSaving || !newForm.name.trim()} className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
               {createSaving ? 'Creating…' : 'Create Source'}
             </button>
-            <button onClick={() => setCreating(false)} className="text-sm text-slate-500 hover:text-slate-300 px-4 py-2 rounded-lg transition-colors">
-              Cancel
-            </button>
+            <button onClick={() => setCreating(false)} className="text-sm text-slate-500 hover:text-slate-300 px-4 py-2 rounded-lg transition-colors">Cancel</button>
           </div>
         </div>
       )}
 
       {/* Source list */}
       <div className="flex flex-col gap-2">
-        {sources.map(s => (
+        {filtered.map(s => (
           <div key={s.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
             <div className="flex items-center gap-4 p-4">
+              {/* Logo / initial */}
+              <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-slate-800 flex items-center justify-center">
+                {s.logo_url ? (
+                  <Image src={s.logo_url} alt={s.name} width={36} height={36} className="object-cover w-full h-full" unoptimized />
+                ) : (
+                  <span className="text-slate-400 text-sm font-bold">{s.name[0]?.toUpperCase()}</span>
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-semibold text-white">{s.name}</p>
@@ -141,7 +167,7 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
 
             {editing === s.id && (
               <div className="border-t border-slate-800 p-4 bg-slate-950">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Name</label>
                     <input value={form.name ?? ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inp} />
@@ -157,6 +183,10 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
                     <label className="text-xs text-slate-500 mb-1 block">Website</label>
                     <input value={form.website ?? ''} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} placeholder="https://…" className={inp} />
                   </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Logo URL</label>
+                    <input value={form.logo_url ?? ''} onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))} placeholder="https://…/logo.png" className={inp} />
+                  </div>
                 </div>
                 <button onClick={() => save(s.id)} disabled={saving} className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
                   {saving ? 'Saving…' : 'Save'}
@@ -165,6 +195,9 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
             )}
           </div>
         ))}
+        {filtered.length === 0 && (
+          <p className="text-slate-600 text-sm text-center py-8">No sources match "{search}"</p>
+        )}
       </div>
     </div>
   )

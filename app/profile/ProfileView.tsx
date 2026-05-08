@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 
 type Entry = {
   id: string
@@ -21,7 +21,7 @@ type Entry = {
 }
 
 type SourceRow = [string, number]
-type BoxSource = { id: string; name: string }
+type BoxSource = { id: string; name: string; logo_url: string | null }
 type UpcomingGroup = { source: { id: string; name: string }; editions: { id: string; edition_name: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; book?: { title: string; author: string } | null }[] }
 
 export default function ProfileView({
@@ -62,6 +62,12 @@ export default function ProfileView({
   const [subscribedIds, setSubscribedIds] = useState<Set<string>>(new Set(initialSubscribedIds))
   const [upcomingBySource, setUpcomingBySource] = useState<UpcomingGroup[]>(initialUpcoming)
   const [, startTransition] = useTransition()
+  const [boxSearch, setBoxSearch] = useState('')
+
+  const filteredBoxSources = useMemo(
+    () => boxSources.filter(s => s.name.toLowerCase().includes(boxSearch.toLowerCase())),
+    [boxSources, boxSearch]
+  )
 
   const stats = [
     { label: 'Total Editions', value: entries.length, icon: 'menu_book', color: 'text-violet-400' },
@@ -366,26 +372,44 @@ export default function ProfileView({
                     <h2 className="text-xl font-bold text-white">Your Subscriptions</h2>
                     <p className="text-slate-400 text-sm mt-1">Toggle the boxes you're currently subscribed to.</p>
                   </div>
+                  {/* Search */}
+                  <div className="relative mb-4">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-base pointer-events-none">search</span>
+                    <input
+                      value={boxSearch}
+                      onChange={e => setBoxSearch(e.target.value)}
+                      placeholder="Search boxes…"
+                      className="w-full bg-slate-900/60 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors"
+                    />
+                  </div>
+
                   {boxSources.length === 0 ? (
                     <p className="text-slate-500 text-sm">No subscription boxes found.</p>
+                  ) : filteredBoxSources.length === 0 ? (
+                    <p className="text-slate-500 text-sm py-4">No boxes match "{boxSearch}"</p>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {boxSources.map(src => {
+                      {filteredBoxSources.map(src => {
                         const isSubbed = subscribedIds.has(src.id)
                         return (
                           <button
                             key={src.id}
                             onClick={() => toggleSubscription(src.id)}
-                            className={`flex items-center gap-4 px-5 py-4 rounded-xl border text-left transition-all ${
+                            className={`flex items-center gap-4 px-4 py-3.5 rounded-xl border text-left transition-all ${
                               isSubbed
                                 ? 'bg-violet-600/20 border-violet-500/50 text-violet-200'
                                 : 'bg-slate-900/60 border-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
                             }`}
                           >
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSubbed ? 'bg-violet-600/40' : 'bg-slate-800'}`}>
-                              <span className={`material-symbols-outlined text-lg ${isSubbed ? 'text-violet-300' : 'text-slate-500'}`} style={isSubbed ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                                inventory_2
-                              </span>
+                            {/* Logo / initial */}
+                            <div className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center ${isSubbed ? 'ring-2 ring-violet-500/50' : ''} bg-slate-800`}>
+                              {src.logo_url ? (
+                                <Image src={src.logo_url} alt={src.name} width={40} height={40} className="object-cover w-full h-full" unoptimized />
+                              ) : (
+                                <span className={`text-sm font-black ${isSubbed ? 'text-violet-300' : 'text-slate-500'}`}>
+                                  {src.name[0]?.toUpperCase()}
+                                </span>
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-sm truncate">{src.name}</p>
@@ -393,7 +417,7 @@ export default function ProfileView({
                                 {isSubbed ? 'Subscribed' : 'Not subscribed'}
                               </p>
                             </div>
-                            <span className={`material-symbols-outlined text-lg shrink-0 ${isSubbed ? 'text-violet-400' : 'text-slate-700'}`}>
+                            <span className={`material-symbols-outlined text-lg shrink-0 ${isSubbed ? 'text-violet-400' : 'text-slate-700'}`} style={isSubbed ? { fontVariationSettings: "'FILL' 1" } : {}}>
                               {isSubbed ? 'check_circle' : 'radio_button_unchecked'}
                             </span>
                           </button>

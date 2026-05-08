@@ -22,7 +22,7 @@ export default async function ProfilePage() {
       book:book_id ( title, author )
     `).eq('user_id', user.id).order('date_read', { ascending: false, nullsFirst: false }),
     supabase.from('user_wishlist').select('edition_id').eq('user_id', user.id),
-    supabase.from('source').select('id, name').eq('type', 'subscription_box').order('name'),
+    supabase.from('source').select('id, name, logo_url').eq('type', 'subscription_box').order('name'),
     supabase.from('user_subscriptions').select('source_id').eq('user_id', user.id),
   ])
 
@@ -71,7 +71,7 @@ export default async function ProfilePage() {
 
   // Subscriptions data
   const subscribedIds = new Set((userSubs ?? []).map((s: any) => s.source_id))
-  const boxSources = (allSources ?? []) as { id: string; name: string; logo_url?: string }[]
+  const boxSources = (allSources ?? []) as { id: string; name: string; logo_url: string | null }[]
 
   // Fetch upcoming editions (current + next month) for subscribed boxes
   const now = new Date()

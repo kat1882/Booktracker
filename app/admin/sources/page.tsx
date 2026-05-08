@@ -14,7 +14,7 @@ export default async function AdminSourcesPage() {
 
   const { data: sources } = await anon
     .from('source')
-    .select('id, name, type, website')
+    .select('id, name, type, website, logo_url')
     .order('name')
 
   return (
