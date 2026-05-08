@@ -21,7 +21,7 @@ type Entry = {
 }
 
 type SourceRow = [string, number]
-type BoxSource = { id: string; name: string; logo_url?: string }
+type BoxSource = { id: string; name: string }
 type UpcomingGroup = { source: { id: string; name: string }; editions: { id: string; edition_name: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; book?: { title: string; author: string } | null }[] }
 
 export default function ProfileView({

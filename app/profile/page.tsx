@@ -22,7 +22,7 @@ export default async function ProfilePage() {
       book:book_id ( title, author )
     `).eq('user_id', user.id).order('date_read', { ascending: false, nullsFirst: false }),
     supabase.from('user_wishlist').select('edition_id').eq('user_id', user.id),
-    supabase.from('source').select('id, name, logo_url').eq('type', 'subscription_box').order('name'),
+    supabase.from('source').select('id, name').eq('type', 'subscription_box').order('name'),
     supabase.from('user_subscriptions').select('source_id').eq('user_id', user.id),
   ])
 
