@@ -15,6 +15,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ('type' in body) updates.type = body.type || null
   if ('website' in body) updates.website = body.website?.trim() || null
   if ('logo_url' in body) updates.logo_url = body.logo_url?.trim() || null
+  if ('brand' in body) updates.brand = body.brand?.trim() || null
 
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 

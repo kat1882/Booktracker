@@ -9,6 +9,7 @@ interface Source {
   type: string | null
   website: string | null
   logo_url: string | null
+  brand: string | null
 }
 
 const SOURCE_TYPES = ['subscription_box', 'retail', 'publisher', 'standard', 'other']
@@ -30,13 +31,13 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const [newForm, setNewForm] = useState({ name: '', type: '', website: '', logo_url: '' })
+  const [newForm, setNewForm] = useState({ name: '', type: '', website: '', logo_url: '', brand: '' })
   const [createSaving, setCreateSaving] = useState(false)
   const [search, setSearch] = useState('')
 
   function startEdit(s: Source) {
     setEditing(s.id)
-    setForm({ name: s.name, type: s.type ?? '', website: s.website ?? '', logo_url: s.logo_url ?? '' })
+    setForm({ name: s.name, type: s.type ?? '', website: s.website ?? '', logo_url: s.logo_url ?? '', brand: s.brand ?? '' })
     setSaved(null)
   }
 
@@ -45,10 +46,10 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
     const res = await fetch(`/api/admin/sources/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null }),
+      body: JSON.stringify({ name: form.name, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null, brand: form.brand || null }),
     })
     if (res.ok) {
-      setSources(prev => prev.map(s => s.id === id ? { ...s, ...form, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null } : s))
+      setSources(prev => prev.map(s => s.id === id ? { ...s, ...form, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null, brand: form.brand || null } : s))
       setSaved(id)
       setEditing(null)
     }
@@ -61,7 +62,7 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
     const res = await fetch('/api/admin/sources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newForm.name.trim(), type: newForm.type || null, website: newForm.website || null, logo_url: newForm.logo_url || null }),
+      body: JSON.stringify({ name: newForm.name.trim(), type: newForm.type || null, website: newForm.website || null, logo_url: newForm.logo_url || null, brand: newForm.brand || null }),
     })
     if (res.ok) {
       const { source } = await res.json()
@@ -122,6 +123,10 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
               <label className="text-xs text-slate-500 mb-1 block">Logo URL</label>
               <input value={newForm.logo_url} onChange={e => setNewForm(f => ({ ...f, logo_url: e.target.value }))} placeholder="https://…/logo.png" className={inp} />
             </div>
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">Brand (for grouping multi-box brands)</label>
+              <input value={newForm.brand} onChange={e => setNewForm(f => ({ ...f, brand: e.target.value }))} placeholder="e.g. OwlCrate" className={inp} />
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={handleCreate} disabled={createSaving || !newForm.name.trim()} className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
@@ -153,6 +158,7 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
                       {s.type.replace(/_/g, ' ')}
                     </span>
                   )}
+                  {s.brand && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">{s.brand}</span>}
                   {saved === s.id && <span className="text-xs text-emerald-400">✓ Saved</span>}
                 </div>
                 {s.website && <p className="text-xs text-slate-600 mt-0.5 truncate">{s.website}</p>}
@@ -186,6 +192,10 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Logo URL</label>
                     <input value={form.logo_url ?? ''} onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))} placeholder="https://…/logo.png" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Brand (for grouping multi-box brands)</label>
+                    <input value={form.brand ?? ''} onChange={e => setForm(f => ({ ...f, brand: e.target.value }))} placeholder="e.g. OwlCrate" className={inp} />
                   </div>
                 </div>
                 <button onClick={() => save(s.id)} disabled={saving} className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
