@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { useState, useTransition } from 'react'
 
 type Entry = {
   id: string
@@ -20,6 +21,8 @@ type Entry = {
 }
 
 type SourceRow = [string, number]
+type BoxSource = { id: string; name: string; logo_url?: string }
+type UpcomingGroup = { source: { id: string; name: string }; editions: { id: string; edition_name: string; cover_image?: string; estimated_value?: number; original_retail_price?: number; book?: { title: string; author: string } | null }[] }
 
 export default function ProfileView({
   username,
@@ -33,6 +36,9 @@ export default function ProfileView({
   sourceList,
   maxSourceCount,
   recentWithCovers,
+  boxSources,
+  subscribedIds: initialSubscribedIds,
+  upcomingBySource: initialUpcoming,
 }: {
   username: string
   joinedYear: number
@@ -45,11 +51,17 @@ export default function ProfileView({
   sourceList: SourceRow[]
   maxSourceCount: number
   recentWithCovers: Entry[]
+  boxSources: BoxSource[]
+  subscribedIds: string[]
+  upcomingBySource: UpcomingGroup[]
 }) {
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 })
   const initial = username[0]?.toUpperCase() ?? '?'
   const featuredShelf = recentWithCovers.slice(0, 6)
-  const readCount = entries.filter(e => e.reading_status === 'read').length
+  const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions'>('overview')
+  const [subscribedIds, setSubscribedIds] = useState<Set<string>>(new Set(initialSubscribedIds))
+  const [upcomingBySource, setUpcomingBySource] = useState<UpcomingGroup[]>(initialUpcoming)
+  const [, startTransition] = useTransition()
 
   const stats = [
     { label: 'Total Editions', value: entries.length, icon: 'menu_book', color: 'text-violet-400' },
@@ -57,6 +69,29 @@ export default function ProfileView({
     { label: 'Signed Editions', value: signedCount, icon: 'history_edu', color: 'text-amber-400' },
     { label: 'This Year', value: thisYearCount, icon: 'calendar_month', color: 'text-blue-400' },
   ]
+
+  async function toggleSubscription(sourceId: string) {
+    const isSubbed = subscribedIds.has(sourceId)
+    // Optimistic update
+    const next = new Set(subscribedIds)
+    if (isSubbed) next.delete(sourceId)
+    else next.add(sourceId)
+    setSubscribedIds(next)
+
+    startTransition(async () => {
+      await fetch('/api/subscriptions', {
+        method: isSubbed ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_id: sourceId }),
+      })
+      // Refresh upcoming editions after toggle
+      const res = await fetch('/api/subscriptions/upcoming', { method: 'GET' })
+      if (res.ok) {
+        const data = await res.json()
+        setUpcomingBySource(data.upcomingBySource ?? [])
+      }
+    })
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#0e131f] flex overflow-hidden">
@@ -126,11 +161,9 @@ export default function ProfileView({
           <div className="max-w-7xl mx-auto px-8 py-10">
 
             {/* ── HERO ── */}
-            <div className="relative mb-10 bg-slate-900/60 border border-slate-800/50 rounded-2xl p-8 overflow-hidden">
-              {/* Glow */}
+            <div className="relative mb-8 bg-slate-900/60 border border-slate-800/50 rounded-2xl p-8 overflow-hidden">
               <div className="absolute top-0 left-0 w-96 h-96 bg-violet-600/10 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl pointer-events-none" />
               <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-8">
-                {/* Avatar */}
                 <div className="relative shrink-0">
                   <div className="w-28 h-28 rounded-full bg-violet-700 flex items-center justify-center text-5xl font-black text-white shadow-2xl shadow-violet-900/60 ring-4 ring-violet-600/30">
                     {initial}
@@ -141,8 +174,6 @@ export default function ProfileView({
                     </div>
                   )}
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 min-w-0 text-center sm:text-left">
                   <h1 className="text-4xl font-black tracking-tight text-white mb-1">{username}</h1>
                   <p className="text-slate-400 text-sm mb-4">Book Collector · Member since {joinedYear}</p>
@@ -160,159 +191,283 @@ export default function ProfileView({
               </div>
             </div>
 
-            {/* ── STAT CARDS ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-              {stats.map(s => (
-                <div key={s.label} className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6 flex items-center justify-between group hover:border-slate-700 transition-colors">
-                  <div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">{s.label}</p>
-                    <p className={`text-3xl font-bold ${s.mono ? 'font-mono' : ''} text-white`}>{s.value}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center group-hover:bg-violet-600/20 transition-colors duration-300">
-                    <span className={`material-symbols-outlined ${s.color}`}>{s.icon}</span>
-                  </div>
-                </div>
+            {/* ── TABS ── */}
+            <div className="flex gap-1 mb-8 border-b border-slate-800/50">
+              {([['overview', 'grid_view', 'Overview'], ['subscriptions', 'inventory_2', 'Subscriptions']] as const).map(([tab, icon, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex items-center gap-2 px-5 py-3 text-sm font-bold transition-colors border-b-2 -mb-px ${
+                    activeTab === tab
+                      ? 'text-violet-300 border-violet-500'
+                      : 'text-slate-500 border-transparent hover:text-slate-200'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">{icon}</span>
+                  {label}
+                  {tab === 'subscriptions' && subscribedIds.size > 0 && (
+                    <span className="bg-violet-600/30 text-violet-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">{subscribedIds.size}</span>
+                  )}
+                </button>
               ))}
             </div>
 
-            {/* ── MAIN CONTENT GRID ── */}
-            <div className="grid grid-cols-12 gap-6">
-
-              {/* Featured Shelf */}
-              <div className="col-span-12 lg:col-span-8 bg-slate-900/60 border border-slate-800/50 rounded-xl p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">Highlights</p>
-                    <h2 className="text-xl font-bold text-white">Featured Shelf</h2>
-                  </div>
-                  <Link href="/shelves" className="text-violet-400 text-sm font-semibold hover:text-violet-300 transition-colors flex items-center gap-1">
-                    View All <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </Link>
+            {/* ── OVERVIEW TAB ── */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Stat cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+                  {stats.map(s => (
+                    <div key={s.label} className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6 flex items-center justify-between group hover:border-slate-700 transition-colors">
+                      <div>
+                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">{s.label}</p>
+                        <p className={`text-3xl font-bold ${s.mono ? 'font-mono' : ''} text-white`}>{s.value}</p>
+                      </div>
+                      <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center group-hover:bg-violet-600/20 transition-colors duration-300">
+                        <span className={`material-symbols-outlined ${s.color}`}>{s.icon}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                {featuredShelf.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-slate-800 rounded-xl text-slate-600">
-                    <p className="mb-3">No editions yet.</p>
-                    <Link href="/browse" className="text-violet-400 hover:text-violet-300 text-sm">Browse editions →</Link>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-5">
-                    {featuredShelf.map(entry => {
-                      const value = entry.edition?.estimated_value ?? entry.edition?.original_retail_price
-                      return (
-                        <Link key={entry.id} href={entry.edition?.id ? `/edition/${entry.edition.id}` : '#'} className="group block">
-                          <div className="relative aspect-[2/3] overflow-hidden rounded-lg shadow-xl ring-1 ring-white/5 group-hover:ring-violet-500/50 transition-all duration-300 group-hover:-translate-y-1">
-                            {entry.edition?.cover_image ? (
-                              <Image
-                                src={entry.edition.cover_image}
-                                alt={entry.book?.title ?? ''}
-                                fill
-                                className="object-cover"
-                                sizes="180px"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 bg-slate-800 flex items-center justify-center text-slate-600 text-xs text-center p-3">
-                                {entry.book?.title?.slice(0, 30)}
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                              {value && (
-                                <span className="text-emerald-400 font-mono font-bold text-sm">${fmt(Number(value))}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="mt-3">
-                            <h3 className="text-white font-bold text-xs leading-tight truncate group-hover:text-violet-300 transition-colors">{entry.book?.title ?? 'Unknown'}</h3>
-                            <p className="text-slate-500 text-[10px] truncate mt-0.5">{entry.book?.author}</p>
-                            {entry.edition?.source?.name && (
-                              <p className="text-violet-400 text-[10px] truncate mt-0.5">{entry.edition.source.name}</p>
-                            )}
-                          </div>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Right column */}
-              <div className="col-span-12 lg:col-span-4 space-y-6">
-
-                {/* Membership card */}
-                <div className={`rounded-xl p-6 border ${isPro ? 'bg-gradient-to-br from-amber-900/30 to-slate-900/60 border-amber-700/40' : 'bg-slate-900/60 border-slate-800/50'}`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-white text-sm">Membership</h3>
-                    {isPro ? (
-                      <span className="bg-amber-500 text-black text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">Pro</span>
+                <div className="grid grid-cols-12 gap-6">
+                  {/* Featured Shelf */}
+                  <div className="col-span-12 lg:col-span-8 bg-slate-900/60 border border-slate-800/50 rounded-xl p-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">Highlights</p>
+                        <h2 className="text-xl font-bold text-white">Featured Shelf</h2>
+                      </div>
+                      <Link href="/shelves" className="text-violet-400 text-sm font-semibold hover:text-violet-300 transition-colors flex items-center gap-1">
+                        View All <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </Link>
+                    </div>
+                    {featuredShelf.length === 0 ? (
+                      <div className="py-12 text-center border border-dashed border-slate-800 rounded-xl text-slate-600">
+                        <p className="mb-3">No editions yet.</p>
+                        <Link href="/browse" className="text-violet-400 hover:text-violet-300 text-sm">Browse editions →</Link>
+                      </div>
                     ) : (
-                      <span className="bg-slate-700 text-slate-400 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">Free</span>
+                      <div className="grid grid-cols-3 gap-5">
+                        {featuredShelf.map(entry => {
+                          const value = entry.edition?.estimated_value ?? entry.edition?.original_retail_price
+                          return (
+                            <Link key={entry.id} href={entry.edition?.id ? `/edition/${entry.edition.id}` : '#'} className="group block">
+                              <div className="relative aspect-[2/3] overflow-hidden rounded-lg shadow-xl ring-1 ring-white/5 group-hover:ring-violet-500/50 transition-all duration-300 group-hover:-translate-y-1">
+                                {entry.edition?.cover_image ? (
+                                  <Image src={entry.edition.cover_image} alt={entry.book?.title ?? ''} fill className="object-cover" sizes="180px" />
+                                ) : (
+                                  <div className="absolute inset-0 bg-slate-800 flex items-center justify-center text-slate-600 text-xs text-center p-3">
+                                    {entry.book?.title?.slice(0, 30)}
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                                  {value && <span className="text-emerald-400 font-mono font-bold text-sm">${fmt(Number(value))}</span>}
+                                </div>
+                              </div>
+                              <div className="mt-3">
+                                <h3 className="text-white font-bold text-xs leading-tight truncate group-hover:text-violet-300 transition-colors">{entry.book?.title ?? 'Unknown'}</h3>
+                                <p className="text-slate-500 text-[10px] truncate mt-0.5">{entry.book?.author}</p>
+                                {entry.edition?.source?.name && (
+                                  <p className="text-violet-400 text-[10px] truncate mt-0.5">{entry.edition.source.name}</p>
+                                )}
+                              </div>
+                            </Link>
+                          )
+                        })}
+                      </div>
                     )}
                   </div>
-                  {isPro ? (
-                    <div className="space-y-2">
-                      {['Market intelligence', 'Collection valuation', 'Advanced filters', 'Priority support'].map(f => (
-                        <div key={f} className="flex items-center gap-2 text-xs text-slate-300">
-                          <span className="material-symbols-outlined text-amber-400 text-sm">check_circle</span>
-                          {f}
+
+                  {/* Right column */}
+                  <div className="col-span-12 lg:col-span-4 space-y-6">
+                    {/* Membership card */}
+                    <div className={`rounded-xl p-6 border ${isPro ? 'bg-gradient-to-br from-amber-900/30 to-slate-900/60 border-amber-700/40' : 'bg-slate-900/60 border-slate-800/50'}`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-white text-sm">Membership</h3>
+                        {isPro ? (
+                          <span className="bg-amber-500 text-black text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">Pro</span>
+                        ) : (
+                          <span className="bg-slate-700 text-slate-400 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">Free</span>
+                        )}
+                      </div>
+                      {isPro ? (
+                        <div className="space-y-2">
+                          {['Market intelligence', 'Collection valuation', 'Advanced filters', 'Priority support'].map(f => (
+                            <div key={f} className="flex items-center gap-2 text-xs text-slate-300">
+                              <span className="material-symbols-outlined text-amber-400 text-sm">check_circle</span>
+                              {f}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : (
+                        <div>
+                          <p className="text-slate-400 text-xs mb-4">Unlock valuation, market data, and more with Pro.</p>
+                          <Link href="/upgrade" className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-colors">
+                            <span className="material-symbols-outlined text-sm">star</span>
+                            Upgrade to Pro
+                          </Link>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Collection by source */}
+                    {sourceList.length > 0 && (
+                      <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6">
+                        <h3 className="font-bold text-white text-sm mb-5">By Source</h3>
+                        <div className="space-y-3">
+                          {sourceList.slice(0, 6).map(([name, count]) => (
+                            <div key={name} className="flex items-center gap-3">
+                              <span className="text-xs text-slate-400 truncate w-28 shrink-0">{name}</span>
+                              <div className="flex-1 bg-slate-800 rounded-full h-1.5">
+                                <div className="bg-violet-500 h-1.5 rounded-full" style={{ width: `${(count / maxSourceCount) * 100}%` }} />
+                              </div>
+                              <span className="text-xs text-slate-500 w-5 text-right shrink-0">{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick links */}
+                    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6">
+                      <h3 className="font-bold text-white text-sm mb-4">Quick Links</h3>
+                      <div className="space-y-2">
+                        {[
+                          { href: '/shelves', icon: 'dashboard', label: 'My Vault', sub: `${entries.length} editions` },
+                          { href: '/collection', icon: 'analytics', label: 'Intelligence', sub: collectionValue > 0 ? `$${fmt(collectionValue)} value` : 'Market data' },
+                          { href: '/marketplace', icon: 'local_mall', label: 'The Exchange', sub: 'Buy & sell' },
+                          { href: '/wishlist', icon: 'bookmark', label: 'Wish List', sub: `${wishlistCount} editions` },
+                        ].map(l => (
+                          <Link key={l.href} href={l.href} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 transition-colors group">
+                            <span className="material-symbols-outlined text-slate-500 group-hover:text-violet-400 transition-colors text-lg">{l.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-slate-200 font-medium">{l.label}</p>
+                              <p className="text-xs text-slate-500">{l.sub}</p>
+                            </div>
+                            <span className="material-symbols-outlined text-slate-700 group-hover:text-slate-500 transition-colors text-sm">chevron_right</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── SUBSCRIPTIONS TAB ── */}
+            {activeTab === 'subscriptions' && (
+              <div className="space-y-10">
+
+                {/* Box selector */}
+                <div>
+                  <div className="mb-5">
+                    <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">My Boxes</p>
+                    <h2 className="text-xl font-bold text-white">Your Subscriptions</h2>
+                    <p className="text-slate-400 text-sm mt-1">Toggle the boxes you're currently subscribed to.</p>
+                  </div>
+                  {boxSources.length === 0 ? (
+                    <p className="text-slate-500 text-sm">No subscription boxes found.</p>
                   ) : (
-                    <div>
-                      <p className="text-slate-400 text-xs mb-4">Unlock valuation, market data, and more with Pro.</p>
-                      <Link href="/upgrade" className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-colors">
-                        <span className="material-symbols-outlined text-sm">star</span>
-                        Upgrade to Pro
-                      </Link>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {boxSources.map(src => {
+                        const isSubbed = subscribedIds.has(src.id)
+                        return (
+                          <button
+                            key={src.id}
+                            onClick={() => toggleSubscription(src.id)}
+                            className={`flex items-center gap-4 px-5 py-4 rounded-xl border text-left transition-all ${
+                              isSubbed
+                                ? 'bg-violet-600/20 border-violet-500/50 text-violet-200'
+                                : 'bg-slate-900/60 border-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                            }`}
+                          >
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSubbed ? 'bg-violet-600/40' : 'bg-slate-800'}`}>
+                              <span className={`material-symbols-outlined text-lg ${isSubbed ? 'text-violet-300' : 'text-slate-500'}`} style={isSubbed ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                                inventory_2
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm truncate">{src.name}</p>
+                              <p className={`text-xs mt-0.5 ${isSubbed ? 'text-violet-400' : 'text-slate-600'}`}>
+                                {isSubbed ? 'Subscribed' : 'Not subscribed'}
+                              </p>
+                            </div>
+                            <span className={`material-symbols-outlined text-lg shrink-0 ${isSubbed ? 'text-violet-400' : 'text-slate-700'}`}>
+                              {isSubbed ? 'check_circle' : 'radio_button_unchecked'}
+                            </span>
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
 
-                {/* Collection by source */}
-                {sourceList.length > 0 && (
-                  <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6">
-                    <h3 className="font-bold text-white text-sm mb-5">By Source</h3>
-                    <div className="space-y-3">
-                      {sourceList.slice(0, 6).map(([name, count]) => (
-                        <div key={name} className="flex items-center gap-3">
-                          <span className="text-xs text-slate-400 truncate w-28 shrink-0">{name}</span>
-                          <div className="flex-1 bg-slate-800 rounded-full h-1.5">
-                            <div
-                              className="bg-violet-500 h-1.5 rounded-full"
-                              style={{ width: `${(count / maxSourceCount) * 100}%` }}
-                            />
+                {/* Upcoming editions */}
+                <div>
+                  <div className="mb-5">
+                    <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">Coming Up</p>
+                    <h2 className="text-xl font-bold text-white">Upcoming Drops</h2>
+                    <p className="text-slate-400 text-sm mt-1">Editions from your subscribed boxes this month and next.</p>
+                  </div>
+
+                  {subscribedIds.size === 0 ? (
+                    <div className="py-16 text-center border border-dashed border-slate-800 rounded-xl text-slate-600">
+                      <span className="material-symbols-outlined text-4xl mb-3 block text-slate-700">inventory_2</span>
+                      <p className="text-sm">Subscribe to boxes above to see upcoming drops here.</p>
+                    </div>
+                  ) : upcomingBySource.length === 0 ? (
+                    <div className="py-16 text-center border border-dashed border-slate-800 rounded-xl text-slate-600">
+                      <span className="material-symbols-outlined text-4xl mb-3 block text-slate-700">calendar_month</span>
+                      <p className="text-sm">No upcoming editions found for your subscribed boxes.</p>
+                      <Link href="/boxes" className="text-violet-400 hover:text-violet-300 text-sm mt-2 inline-block">Browse all boxes →</Link>
+                    </div>
+                  ) : (
+                    <div className="space-y-10">
+                      {upcomingBySource.map(({ source, editions }) => (
+                        <section key={source.id}>
+                          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/50">
+                            <h3 className="font-bold text-white">{source.name}</h3>
+                            <Link href={`/boxes/${encodeURIComponent(source.name)}`} className="text-violet-400 text-xs font-semibold flex items-center gap-1 hover:text-violet-300 transition-colors">
+                              View archive <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                            </Link>
                           </div>
-                          <span className="text-xs text-slate-500 w-5 text-right shrink-0">{count}</span>
-                        </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                            {editions.map(ed => {
+                              const value = ed.estimated_value ?? ed.original_retail_price
+                              return (
+                                <Link key={ed.id} href={`/edition/${ed.id}`} className="group block">
+                                  <div className="relative aspect-[2/3] overflow-hidden rounded-lg shadow-xl ring-1 ring-white/5 group-hover:ring-violet-500/50 transition-all duration-300 group-hover:-translate-y-1.5">
+                                    {ed.cover_image ? (
+                                      <Image src={ed.cover_image} alt={ed.book?.title ?? ''} fill className="object-cover" sizes="160px" unoptimized />
+                                    ) : (
+                                      <div className="absolute inset-0 bg-slate-800 flex items-center justify-center text-slate-600 text-xs text-center p-3">
+                                        {ed.book?.title?.slice(0, 30)}
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                                      <span className="text-white text-xs font-bold leading-tight line-clamp-2">{ed.book?.title}</span>
+                                      {value && <span className="text-emerald-400 font-mono text-xs font-bold mt-1">${fmt(Number(value))}</span>}
+                                    </div>
+                                  </div>
+                                  <div className="mt-3">
+                                    <h4 className="text-white font-bold text-xs leading-tight line-clamp-2 group-hover:text-violet-300 transition-colors">{ed.book?.title ?? 'Unknown'}</h4>
+                                    <p className="text-slate-500 text-[10px] truncate mt-0.5">{ed.book?.author}</p>
+                                    {value && <p className="text-emerald-400 font-mono text-xs font-semibold mt-1">${fmt(Number(value))}</p>}
+                                  </div>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        </section>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Quick links */}
-                <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6">
-                  <h3 className="font-bold text-white text-sm mb-4">Quick Links</h3>
-                  <div className="space-y-2">
-                    {[
-                      { href: '/shelves', icon: 'dashboard', label: 'My Vault', sub: `${entries.length} editions` },
-                      { href: '/collection', icon: 'analytics', label: 'Intelligence', sub: collectionValue > 0 ? `$${fmt(collectionValue)} value` : 'Market data' },
-                      { href: '/marketplace', icon: 'local_mall', label: 'The Exchange', sub: 'Buy & sell' },
-                      { href: '/wishlist', icon: 'bookmark', label: 'Wish List', sub: `${wishlistCount} editions` },
-                    ].map(l => (
-                      <Link key={l.href} href={l.href} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 transition-colors group">
-                        <span className="material-symbols-outlined text-slate-500 group-hover:text-violet-400 transition-colors text-lg">{l.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-200 font-medium">{l.label}</p>
-                          <p className="text-xs text-slate-500">{l.sub}</p>
-                        </div>
-                        <span className="material-symbols-outlined text-slate-700 group-hover:text-slate-500 transition-colors text-sm">chevron_right</span>
-                      </Link>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              </div>
 
-            </div>
+              </div>
+            )}
+
           </div>
         </main>
       </div>

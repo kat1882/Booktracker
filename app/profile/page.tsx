@@ -12,7 +12,7 @@ export default async function ProfilePage() {
     { onConflict: 'id', ignoreDuplicates: true }
   )
 
-  const [{ data: profile }, { data: collection }, { data: wishlist }] = await Promise.all([
+  const [{ data: profile }, { data: collection }, { data: wishlist }, { data: allSources }, { data: userSubs }] = await Promise.all([
     supabase.from('user_profile').select('username, country, joined_at, is_pro').eq('id', user.id).single(),
     supabase.from('user_collection').select(`
       id, reading_status, rating, date_read,
@@ -22,6 +22,8 @@ export default async function ProfilePage() {
       book:book_id ( title, author )
     `).eq('user_id', user.id).order('date_read', { ascending: false, nullsFirst: false }),
     supabase.from('user_wishlist').select('edition_id').eq('user_id', user.id),
+    supabase.from('source').select('id, name, logo_url').eq('type', 'subscription_box').order('name'),
+    supabase.from('user_subscriptions').select('source_id').eq('user_id', user.id),
   ])
 
   const isPro = profile?.is_pro ?? false
@@ -67,6 +69,41 @@ export default async function ProfilePage() {
 
   const recentWithCovers = entries.filter(e => e.edition?.cover_image).slice(0, 6)
 
+  // Subscriptions data
+  const subscribedIds = new Set((userSubs ?? []).map((s: any) => s.source_id))
+  const boxSources = (allSources ?? []) as { id: string; name: string; logo_url?: string }[]
+
+  // Fetch upcoming editions (current + next month) for subscribed boxes
+  const now = new Date()
+  const months = [
+    { month: now.toLocaleString('en-US', { month: 'long' }), year: String(now.getFullYear()) },
+    { month: new Date(now.getFullYear(), now.getMonth() + 1).toLocaleString('en-US', { month: 'long' }), year: String(new Date(now.getFullYear(), now.getMonth() + 1).getFullYear()) },
+  ]
+
+  let upcomingEditions: any[] = []
+  if (subscribedIds.size > 0) {
+    const subSourceIds = [...subscribedIds]
+    const results = await Promise.all(
+      months.map(({ month, year }) =>
+        supabase
+          .from('edition')
+          .select('id, edition_name, cover_image, estimated_value, original_retail_price, source_id, book:book_id(title, author)')
+          .in('source_id', subSourceIds)
+          .ilike('edition_name', `%${month}%${year}%`)
+      )
+    )
+    upcomingEditions = results.flatMap(r => r.data ?? [])
+  }
+
+  // Group upcoming by source
+  const upcomingBySource: Record<string, { source: { id: string; name: string }; editions: any[] }> = {}
+  for (const ed of upcomingEditions) {
+    const src = boxSources.find(s => s.id === (ed as any).source_id)
+    if (!src) continue
+    if (!upcomingBySource[src.id]) upcomingBySource[src.id] = { source: src, editions: [] }
+    upcomingBySource[src.id].editions.push(ed)
+  }
+
   return (
     <ProfileView
       username={username}
@@ -80,6 +117,9 @@ export default async function ProfilePage() {
       sourceList={sourceList}
       maxSourceCount={maxSourceCount}
       recentWithCovers={recentWithCovers}
+      boxSources={boxSources}
+      subscribedIds={[...subscribedIds]}
+      upcomingBySource={Object.values(upcomingBySource)}
     />
   )
 }
