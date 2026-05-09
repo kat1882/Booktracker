@@ -45,3 +45,4 @@ scripts/bas-*.mjs
 scripts/brand-site-import.mjs
 scripts/bas-*.mjs
 scripts/brand-site-import.mjs
+scripts/populate-source-info.mjs
