@@ -82,14 +82,7 @@ export default async function ProfilePage() {
 
   let upcomingEditions: any[] = []
   if (subscribedIds.size > 0) {
-    // Expand to all sources in the same brand as any subscribed source
-    const subscribedBrands = new Set(
-      boxSources.filter(s => subscribedIds.has(s.id) && s.brand).map(s => s.brand!)
-    )
-    const expandedSourceIds = [...new Set([
-      ...subscribedIds,
-      ...boxSources.filter(s => s.brand && subscribedBrands.has(s.brand)).map(s => s.id),
-    ])]
+    const subSourceIds = [...subscribedIds]
 
     const monthFilter = months
       .flatMap(({ month, year }) => [
@@ -101,7 +94,7 @@ export default async function ProfilePage() {
     const { data: raw } = await supabase
       .from('edition')
       .select('id, edition_name, cover_image, estimated_value, original_retail_price, source_id, book:book_id(title, author)')
-      .in('source_id', expandedSourceIds)
+      .in('source_id', subSourceIds)
       .or(monthFilter)
 
     // Deduplicate by id (release_month and edition_name filters can overlap)

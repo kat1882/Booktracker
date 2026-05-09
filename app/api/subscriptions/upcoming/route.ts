@@ -7,27 +7,12 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: userSubs } = await supabase.from('user_subscriptions').select('source_id').eq('user_id', user.id)
-  const subscribedIds = new Set((userSubs ?? []).map((s: any) => s.source_id))
+  const subscribedIds = (userSubs ?? []).map((s: any) => s.source_id)
 
-  if (subscribedIds.size === 0) return NextResponse.json({ upcomingBySource: [] })
+  if (subscribedIds.length === 0) return NextResponse.json({ upcomingBySource: [] })
 
-  const { data: allSources } = await supabase
-    .from('source')
-    .select('id, name, brand')
-    .eq('type', 'subscription_box')
-
-  const sources = allSources ?? []
-
-  // Expand to all sources sharing a brand with any subscribed source
-  const subscribedBrands = new Set(
-    sources.filter((s: any) => subscribedIds.has(s.id) && s.brand).map((s: any) => s.brand)
-  )
-  const expandedSourceIds = [...new Set([
-    ...subscribedIds,
-    ...sources.filter((s: any) => s.brand && subscribedBrands.has(s.brand)).map((s: any) => s.id),
-  ])]
-
-  const sourceMap = Object.fromEntries(sources.map((s: any) => [s.id, s]))
+  const { data: sources } = await supabase.from('source').select('id, name').in('id', subscribedIds)
+  const sourceMap = Object.fromEntries((sources ?? []).map((s: any) => [s.id, s]))
 
   const now = new Date()
   const months = [
@@ -45,7 +30,7 @@ export async function GET() {
   const { data: raw } = await supabase
     .from('edition')
     .select('id, edition_name, cover_image, estimated_value, original_retail_price, source_id, book:book_id(title, author)')
-    .in('source_id', expandedSourceIds)
+    .in('source_id', subscribedIds)
     .or(monthFilter)
 
   // Deduplicate
