@@ -15,22 +15,30 @@ export default async function BoxesPage({
   const supabase = await createClient()
   const { month: qMonth, year: qYear } = await searchParams
 
-  // Get all sub-box source IDs
-  const { data: sources } = await supabase.from('source').select('id,name,type').eq('type','subscription_box')
+  // Get all source IDs — subscription boxes AND retailers
+  const { data: sources } = await supabase
+    .from('source')
+    .select('id,name,type')
+    .in('type', ['subscription_box', 'retailer'])
   const sourceIds = (sources ?? []).map((s: any) => s.id)
   const sourceMap = Object.fromEntries((sources ?? []).map((s: any) => [s.id, s]))
 
-  // Sample edition names to build available months
+  // Sample edition names + release_month to build available months
   const { data: nameRows } = await supabase
     .from('edition')
-    .select('edition_name')
+    .select('edition_name, release_month')
     .in('source_id', sourceIds)
-    .limit(5000)
+    .limit(8000)
 
   const monthSet = new Set<string>()
   for (const row of nameRows ?? []) {
     const m = (row.edition_name as string).match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(202\d)/i)
     if (m) monthSet.add(`${m[1].toLowerCase()}-${m[2]}`)
+    // Also use release_month field
+    if (row.release_month) {
+      const rm = (row.release_month as string).match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(202\d)/i)
+      if (rm) monthSet.add(`${rm[1].toLowerCase()}-${rm[2]}`)
+    }
   }
 
   const months = [...monthSet].sort((a, b) => {
@@ -44,12 +52,12 @@ export default async function BoxesPage({
   const selectedYear = qYear ?? months[0]?.split('-')[1] ?? '2026'
   const monthLabel = selectedMonth.charAt(0).toUpperCase() + selectedMonth.slice(1)
 
-  // Fetch editions for selected month/year
+  // Fetch editions for selected month/year — match by name OR release_month field
   const { data: editions } = await supabase
     .from('edition')
-    .select('id, edition_name, cover_image, estimated_value, original_retail_price, edition_type, source_id, book:book_id(id, title, author)')
+    .select('id, edition_name, cover_image, estimated_value, original_retail_price, edition_type, source_id, release_month, book:book_id(id, title, author)')
     .in('source_id', sourceIds)
-    .ilike('edition_name', `%${monthLabel}%${selectedYear}%`)
+    .or(`edition_name.ilike.%${monthLabel}%${selectedYear}%,release_month.eq.${monthLabel} ${selectedYear}`)
 
   // Group by source, sorted by edition count desc
   const bySource: Record<string, { source: any; editions: any[] }> = {}

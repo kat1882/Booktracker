@@ -21,6 +21,8 @@ const EDITION_BADGE: Record<string, { label: string; color: string }> = {
   subscription_box: { label: 'Sub Box',       color: 'bg-violet-900/40 text-violet-400 border-violet-700/40' },
   illustrated:      { label: 'Illustrated',   color: 'bg-blue-900/40 text-blue-400 border-blue-700/40' },
   limited:          { label: 'Limited',       color: 'bg-rose-900/40 text-rose-400 border-rose-700/40' },
+  deluxe:           { label: 'Deluxe',        color: 'bg-emerald-900/40 text-emerald-400 border-emerald-700/40' },
+  collectors:       { label: 'Collector\'s',  color: 'bg-orange-900/40 text-orange-400 border-orange-700/40' },
 }
 
 export default function BoxesView({
