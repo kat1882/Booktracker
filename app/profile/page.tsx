@@ -82,17 +82,35 @@ export default async function ProfilePage() {
 
   let upcomingEditions: any[] = []
   if (subscribedIds.size > 0) {
-    const subSourceIds = [...subscribedIds]
-    const results = await Promise.all(
-      months.map(({ month, year }) =>
-        supabase
-          .from('edition')
-          .select('id, edition_name, cover_image, estimated_value, original_retail_price, source_id, book:book_id(title, author)')
-          .in('source_id', subSourceIds)
-          .ilike('edition_name', `%${month}%${year}%`)
-      )
+    // Expand to all sources in the same brand as any subscribed source
+    const subscribedBrands = new Set(
+      boxSources.filter(s => subscribedIds.has(s.id) && s.brand).map(s => s.brand!)
     )
-    upcomingEditions = results.flatMap(r => r.data ?? [])
+    const expandedSourceIds = [...new Set([
+      ...subscribedIds,
+      ...boxSources.filter(s => s.brand && subscribedBrands.has(s.brand)).map(s => s.id),
+    ])]
+
+    const monthFilter = months
+      .flatMap(({ month, year }) => [
+        `release_month.eq.${month} ${year}`,
+        `edition_name.ilike.%${month}%${year}%`,
+      ])
+      .join(',')
+
+    const { data: raw } = await supabase
+      .from('edition')
+      .select('id, edition_name, cover_image, estimated_value, original_retail_price, source_id, book:book_id(title, author)')
+      .in('source_id', expandedSourceIds)
+      .or(monthFilter)
+
+    // Deduplicate by id (release_month and edition_name filters can overlap)
+    const seen = new Set<string>()
+    upcomingEditions = (raw ?? []).filter((ed: any) => {
+      if (seen.has(ed.id)) return false
+      seen.add(ed.id)
+      return true
+    })
   }
 
   // Group upcoming by source

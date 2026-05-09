@@ -379,135 +379,120 @@ export default function ProfileView({
 
             {/* ── SUBSCRIPTIONS TAB ── */}
             {activeTab === 'subscriptions' && (
-              <div className="space-y-10">
+              <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-8 items-start">
 
-                {/* Box selector */}
-                <div>
-                  <div className="mb-5">
-                    <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">My Boxes</p>
-                    <h2 className="text-xl font-bold text-white">Your Subscriptions</h2>
-                    <p className="text-slate-400 text-sm mt-1">Toggle the boxes you're currently subscribed to.</p>
-                  </div>
-                  {/* Search */}
-                  <div className="relative mb-4">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-base pointer-events-none">search</span>
-                    <input
-                      value={boxSearch}
-                      onChange={e => setBoxSearch(e.target.value)}
-                      placeholder="Search boxes…"
-                      className="w-full bg-slate-900/60 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors"
-                    />
+                {/* ── LEFT: Subscription Manager ── */}
+                <div className="bg-slate-900/60 border border-slate-800/50 rounded-2xl overflow-hidden sticky top-6">
+                  <div className="px-5 py-4 border-b border-slate-800/50">
+                    <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-0.5">My Boxes</p>
+                    <h2 className="text-base font-bold text-white">Subscriptions</h2>
+                    <p className="text-slate-500 text-xs mt-1">Toggle boxes you currently receive.</p>
                   </div>
 
-                  {boxSources.length === 0 ? (
-                    <p className="text-slate-500 text-sm">No subscription boxes found.</p>
-                  ) : filteredBoxSources.length === 0 ? (
-                    <p className="text-slate-500 text-sm py-4">No boxes match "{boxSearch}"</p>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {groupedBoxSources.map(group => {
-                        if (!group.isMulti) {
+                  <div className="px-4 py-3 border-b border-slate-800/50">
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">search</span>
+                      <input
+                        value={boxSearch}
+                        onChange={e => setBoxSearch(e.target.value)}
+                        placeholder="Search boxes…"
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="overflow-y-auto max-h-[55vh]">
+                    {boxSources.length === 0 ? (
+                      <p className="text-slate-500 text-sm p-5">No subscription boxes found.</p>
+                    ) : filteredBoxSources.length === 0 ? (
+                      <p className="text-slate-500 text-sm p-5">No boxes match &ldquo;{boxSearch}&rdquo;</p>
+                    ) : (
+                      <div>
+                        {groupedBoxSources.map(group => {
+                          if (group.isMulti) {
+                            const subbedCount = group.sources.filter(s => subscribedIds.has(s.id)).length
+                            return (
+                              <div key={group.brandKey} className="border-b border-slate-800/30 last:border-0">
+                                <div className="px-4 py-2.5 flex items-center gap-2.5 bg-slate-950/30">
+                                  <div className="w-6 h-6 rounded overflow-hidden bg-slate-800 shrink-0 flex items-center justify-center">
+                                    {group.sources[0].logo_url ? (
+                                      <Image src={group.sources[0].logo_url} alt={group.brandName} width={24} height={24} className="object-cover w-full h-full" unoptimized />
+                                    ) : (
+                                      <span className="text-[9px] font-black text-slate-400">{group.brandName[0]?.toUpperCase()}</span>
+                                    )}
+                                  </div>
+                                  <span className="text-xs font-black uppercase tracking-widest text-slate-300 flex-1">{group.brandName}</span>
+                                  {subbedCount > 0 && (
+                                    <span className="text-[10px] text-violet-400 font-bold">{subbedCount}/{group.sources.length}</span>
+                                  )}
+                                </div>
+                                {group.sources.map(src => {
+                                  const isSubbed = subscribedIds.has(src.id)
+                                  return (
+                                    <button
+                                      key={src.id}
+                                      onClick={() => toggleSubscription(src.id)}
+                                      className={`w-full flex items-center gap-3 pl-12 pr-4 py-2.5 text-left transition-colors hover:bg-slate-800/40 ${isSubbed ? 'bg-violet-600/10' : ''}`}
+                                    >
+                                      <span className={`flex-1 text-sm truncate ${isSubbed ? 'text-violet-200 font-medium' : 'text-slate-500'}`}>{src.name}</span>
+                                      <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${isSubbed ? 'bg-violet-500 border-violet-500' : 'border-slate-700'}`}>
+                                        {isSubbed && <span className="material-symbols-outlined text-white" style={{ fontSize: '9px' }}>check</span>}
+                                      </div>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )
+                          }
+
                           const src = group.sources[0]
                           const isSubbed = subscribedIds.has(src.id)
                           return (
                             <button
                               key={src.id}
                               onClick={() => toggleSubscription(src.id)}
-                              className={`flex items-center gap-4 px-4 py-3.5 rounded-xl border text-left transition-all ${
-                                isSubbed
-                                  ? 'bg-violet-600/20 border-violet-500/50 text-violet-200'
-                                  : 'bg-slate-900/60 border-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-200'
-                              }`}
+                              className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-slate-800/30 last:border-0 transition-colors hover:bg-slate-800/40 ${isSubbed ? 'bg-violet-600/10' : ''}`}
                             >
-                              <div className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center ${isSubbed ? 'ring-2 ring-violet-500/50' : ''} bg-slate-800`}>
+                              <div className={`w-6 h-6 rounded overflow-hidden bg-slate-800 shrink-0 flex items-center justify-center ${isSubbed ? 'ring-1 ring-violet-500/60' : ''}`}>
                                 {src.logo_url ? (
-                                  <Image src={src.logo_url} alt={src.name} width={40} height={40} className="object-cover w-full h-full" unoptimized />
+                                  <Image src={src.logo_url} alt={src.name} width={24} height={24} className="object-cover w-full h-full" unoptimized />
                                 ) : (
-                                  <span className={`text-sm font-black ${isSubbed ? 'text-violet-300' : 'text-slate-500'}`}>
-                                    {src.name[0]?.toUpperCase()}
-                                  </span>
+                                  <span className={`text-[9px] font-black ${isSubbed ? 'text-violet-400' : 'text-slate-500'}`}>{src.name[0]?.toUpperCase()}</span>
                                 )}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm truncate">{src.name}</p>
-                                <p className={`text-xs mt-0.5 ${isSubbed ? 'text-violet-400' : 'text-slate-600'}`}>
-                                  {isSubbed ? 'Subscribed' : 'Not subscribed'}
-                                </p>
+                              <span className={`flex-1 text-sm truncate ${isSubbed ? 'text-violet-200 font-medium' : 'text-slate-400'}`}>{src.name}</span>
+                              <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${isSubbed ? 'bg-violet-500 border-violet-500' : 'border-slate-700'}`}>
+                                {isSubbed && <span className="material-symbols-outlined text-white" style={{ fontSize: '9px' }}>check</span>}
                               </div>
-                              <span className={`material-symbols-outlined text-lg shrink-0 ${isSubbed ? 'text-violet-400' : 'text-slate-700'}`} style={isSubbed ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                                {isSubbed ? 'check_circle' : 'radio_button_unchecked'}
-                              </span>
                             </button>
                           )
-                        }
+                        })}
+                      </div>
+                    )}
+                  </div>
 
-                        // Multi-box brand group
-                        const anySubbed = group.sources.some(s => subscribedIds.has(s.id))
-                        return (
-                          <div
-                            key={group.brandKey}
-                            className={`rounded-xl border transition-all ${
-                              anySubbed ? 'bg-violet-600/10 border-violet-500/40' : 'bg-slate-900/60 border-slate-800/50'
-                            }`}
-                          >
-                            <div className="px-4 pt-3 pb-2 flex items-center gap-2">
-                              <div className="w-5 h-5 rounded flex items-center justify-center bg-slate-800 shrink-0">
-                                {group.sources[0].logo_url ? (
-                                  <Image src={group.sources[0].logo_url} alt={group.brandName} width={20} height={20} className="object-cover w-full h-full rounded" unoptimized />
-                                ) : (
-                                  <span className="text-[10px] font-black text-slate-500">{group.brandName[0]?.toUpperCase()}</span>
-                                )}
-                              </div>
-                              <p className={`text-xs font-black uppercase tracking-widest ${anySubbed ? 'text-violet-400' : 'text-slate-500'}`}>{group.brandName}</p>
-                            </div>
-                            <div className="px-2 pb-2 space-y-1">
-                              {group.sources.map(src => {
-                                const isSubbed = subscribedIds.has(src.id)
-                                return (
-                                  <button
-                                    key={src.id}
-                                    onClick={() => toggleSubscription(src.id)}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                                      isSubbed
-                                        ? 'bg-violet-600/20 text-violet-200'
-                                        : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                                    }`}
-                                  >
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-bold text-sm truncate">{src.name}</p>
-                                      <p className={`text-xs mt-0.5 ${isSubbed ? 'text-violet-400' : 'text-slate-600'}`}>
-                                        {isSubbed ? 'Subscribed' : 'Not subscribed'}
-                                      </p>
-                                    </div>
-                                    <span className={`material-symbols-outlined text-lg shrink-0 ${isSubbed ? 'text-violet-400' : 'text-slate-700'}`} style={isSubbed ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                                      {isSubbed ? 'check_circle' : 'radio_button_unchecked'}
-                                    </span>
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })}
+                  {subscribedIds.size > 0 && (
+                    <div className="px-5 py-2.5 border-t border-slate-800/50 text-xs text-slate-500">
+                      {subscribedIds.size} box{subscribedIds.size !== 1 ? 'es' : ''} subscribed
                     </div>
                   )}
                 </div>
 
-                {/* Upcoming editions */}
+                {/* ── RIGHT: Upcoming Drops ── */}
                 <div>
-                  <div className="mb-5">
+                  <div className="mb-6">
                     <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">Coming Up</p>
                     <h2 className="text-xl font-bold text-white">Upcoming Drops</h2>
                     <p className="text-slate-400 text-sm mt-1">Editions from your subscribed boxes this month and next.</p>
                   </div>
 
                   {subscribedIds.size === 0 ? (
-                    <div className="py-16 text-center border border-dashed border-slate-800 rounded-xl text-slate-600">
+                    <div className="py-20 text-center border border-dashed border-slate-800 rounded-2xl text-slate-600">
                       <span className="material-symbols-outlined text-4xl mb-3 block text-slate-700">inventory_2</span>
-                      <p className="text-sm">Subscribe to boxes above to see upcoming drops here.</p>
+                      <p className="text-sm">Subscribe to boxes on the left to see upcoming drops here.</p>
                     </div>
                   ) : upcomingBySource.length === 0 ? (
-                    <div className="py-16 text-center border border-dashed border-slate-800 rounded-xl text-slate-600">
+                    <div className="py-20 text-center border border-dashed border-slate-800 rounded-2xl text-slate-600">
                       <span className="material-symbols-outlined text-4xl mb-3 block text-slate-700">calendar_month</span>
                       <p className="text-sm">No upcoming editions found for your subscribed boxes.</p>
                       <Link href="/boxes" className="text-violet-400 hover:text-violet-300 text-sm mt-2 inline-block">Browse all boxes →</Link>
@@ -522,7 +507,7 @@ export default function ProfileView({
                               View archive <span className="material-symbols-outlined text-sm">arrow_forward</span>
                             </Link>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
                             {editions.map(ed => {
                               const value = ed.estimated_value ?? ed.original_retail_price
                               return (
@@ -540,10 +525,9 @@ export default function ProfileView({
                                       {value && <span className="text-emerald-400 font-mono text-xs font-bold mt-1">${fmt(Number(value))}</span>}
                                     </div>
                                   </div>
-                                  <div className="mt-3">
+                                  <div className="mt-2">
                                     <h4 className="text-white font-bold text-xs leading-tight line-clamp-2 group-hover:text-violet-300 transition-colors">{ed.book?.title ?? 'Unknown'}</h4>
                                     <p className="text-slate-500 text-[10px] truncate mt-0.5">{ed.book?.author}</p>
-                                    {value && <p className="text-emerald-400 font-mono text-xs font-semibold mt-1">${fmt(Number(value))}</p>}
                                   </div>
                                 </Link>
                               )
