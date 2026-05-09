@@ -63,6 +63,7 @@ export default function IntelligenceView({
             { href: '/shelves',     label: 'The Library',  icon: 'auto_stories', active: false },
             { href: '/collection',  label: 'Intelligence', icon: 'analytics',    active: true  },
             { href: '/marketplace', label: 'The Exchange', icon: 'local_mall',   active: false },
+            { href: '/boxes',       label: 'Box Registry', icon: 'inventory_2',  active: false },
           ].map(item => (
             <Link
               key={item.label}

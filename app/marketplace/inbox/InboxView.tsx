@@ -257,6 +257,7 @@ export default function InboxView({
             { href: '/shelves',           label: 'The Library',  icon: 'auto_stories',active: false },
             { href: '/collection',        label: 'Intelligence', icon: 'analytics',   active: false },
             { href: '/marketplace',       label: 'The Exchange', icon: 'local_mall',  active: false },
+            { href: '/boxes',             label: 'Box Registry', icon: 'inventory_2', active: false },
             { href: '/marketplace/inbox', label: 'Inbox',        icon: 'mail',        active: true  },
           ].map(item => (
             <Link key={item.label} href={item.href}

@@ -138,6 +138,10 @@ export default function VaultLayout({
             <span className="material-symbols-outlined text-xl">local_mall</span>
             <span className="font-medium text-sm">The Exchange</span>
           </Link>
+          <Link href="/boxes" className="w-full px-4 py-3 flex items-center gap-3 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-all duration-200">
+            <span className="material-symbols-outlined text-xl">inventory_2</span>
+            <span className="font-medium text-sm">Box Registry</span>
+          </Link>
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-800/50 space-y-3">
