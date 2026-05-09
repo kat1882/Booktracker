@@ -10,6 +10,19 @@ interface Source {
   website: string | null
   logo_url: string | null
   brand: string | null
+  tagline: string | null
+  ships_from: string | null
+  ships_to: string | null
+  book_type: string | null
+  genres: string | null
+  sub_frequency: string | null
+  what_you_get: string | null
+  cost: string | null
+  sub_renews: string | null
+  sub_ships: string | null
+  sub_cycle_example: string | null
+  skip_notes: string | null
+  additional_notes: string | null
 }
 
 const SOURCE_TYPES = ['subscription_box', 'retail', 'publisher', 'standard', 'other']
@@ -31,13 +44,13 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
-  const [newForm, setNewForm] = useState({ name: '', type: '', website: '', logo_url: '', brand: '' })
+  const [newForm, setNewForm] = useState({ name: '', type: '', website: '', logo_url: '', brand: '', tagline: '', ships_from: '', ships_to: '', book_type: '', genres: '', sub_frequency: '', what_you_get: '', cost: '', sub_renews: '', sub_ships: '', sub_cycle_example: '', skip_notes: '', additional_notes: '' })
   const [createSaving, setCreateSaving] = useState(false)
   const [search, setSearch] = useState('')
 
   function startEdit(s: Source) {
     setEditing(s.id)
-    setForm({ name: s.name, type: s.type ?? '', website: s.website ?? '', logo_url: s.logo_url ?? '', brand: s.brand ?? '' })
+    setForm({ name: s.name, type: s.type ?? '', website: s.website ?? '', logo_url: s.logo_url ?? '', brand: s.brand ?? '', tagline: s.tagline ?? '', ships_from: s.ships_from ?? '', ships_to: s.ships_to ?? '', book_type: s.book_type ?? '', genres: s.genres ?? '', sub_frequency: s.sub_frequency ?? '', what_you_get: s.what_you_get ?? '', cost: s.cost ?? '', sub_renews: s.sub_renews ?? '', sub_ships: s.sub_ships ?? '', sub_cycle_example: s.sub_cycle_example ?? '', skip_notes: s.skip_notes ?? '', additional_notes: s.additional_notes ?? '' })
     setSaved(null)
   }
 
@@ -46,10 +59,10 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
     const res = await fetch(`/api/admin/sources/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null, brand: form.brand || null }),
+      body: JSON.stringify({ name: form.name, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null, brand: form.brand || null, tagline: form.tagline || null, ships_from: form.ships_from || null, ships_to: form.ships_to || null, book_type: form.book_type || null, genres: form.genres || null, sub_frequency: form.sub_frequency || null, what_you_get: form.what_you_get || null, cost: form.cost || null, sub_renews: form.sub_renews || null, sub_ships: form.sub_ships || null, sub_cycle_example: form.sub_cycle_example || null, skip_notes: form.skip_notes || null, additional_notes: form.additional_notes || null }),
     })
     if (res.ok) {
-      setSources(prev => prev.map(s => s.id === id ? { ...s, ...form, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null, brand: form.brand || null } : s))
+      setSources(prev => prev.map(s => s.id === id ? { ...s, ...form, type: form.type || null, website: form.website || null, logo_url: form.logo_url || null, brand: form.brand || null, tagline: form.tagline || null, ships_from: form.ships_from || null, ships_to: form.ships_to || null, book_type: form.book_type || null, genres: form.genres || null, sub_frequency: form.sub_frequency || null, what_you_get: form.what_you_get || null, cost: form.cost || null, sub_renews: form.sub_renews || null, sub_ships: form.sub_ships || null, sub_cycle_example: form.sub_cycle_example || null, skip_notes: form.skip_notes || null, additional_notes: form.additional_notes || null } : s))
       setSaved(id)
       setEditing(null)
     }
@@ -62,7 +75,7 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
     const res = await fetch('/api/admin/sources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newForm.name.trim(), type: newForm.type || null, website: newForm.website || null, logo_url: newForm.logo_url || null, brand: newForm.brand || null }),
+      body: JSON.stringify({ name: newForm.name.trim(), type: newForm.type || null, website: newForm.website || null, logo_url: newForm.logo_url || null, brand: newForm.brand || null, tagline: newForm.tagline || null, ships_from: newForm.ships_from || null, ships_to: newForm.ships_to || null, book_type: newForm.book_type || null, genres: newForm.genres || null, sub_frequency: newForm.sub_frequency || null, what_you_get: newForm.what_you_get || null, cost: newForm.cost || null, sub_renews: newForm.sub_renews || null, sub_ships: newForm.sub_ships || null, sub_cycle_example: newForm.sub_cycle_example || null, skip_notes: newForm.skip_notes || null, additional_notes: newForm.additional_notes || null }),
     })
     if (res.ok) {
       const { source } = await res.json()
@@ -196,6 +209,62 @@ export default function SourcesManager({ initialSources }: { initialSources: Sou
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Brand (for grouping multi-box brands)</label>
                     <input value={form.brand ?? ''} onChange={e => setForm(f => ({ ...f, brand: e.target.value }))} placeholder="e.g. OwlCrate" className={inp} />
+                  </div>
+                </div>
+                {/* Subscription Info */}
+                <p className="text-xs font-semibold text-slate-400 mt-4 mb-2 uppercase tracking-widest">Subscription Info</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-slate-500 mb-1 block">Tagline / Description</label>
+                    <input value={form.tagline ?? ''} onChange={e => setForm(f => ({ ...f, tagline: e.target.value }))} placeholder='e.g. "Monthly romance hardcovers"' className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Ships From</label>
+                    <input value={form.ships_from ?? ''} onChange={e => setForm(f => ({ ...f, ships_from: e.target.value }))} placeholder="UK, USA" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Ships To</label>
+                    <input value={form.ships_to ?? ''} onChange={e => setForm(f => ({ ...f, ships_to: e.target.value }))} placeholder="Worldwide" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Book Type</label>
+                    <input value={form.book_type ?? ''} onChange={e => setForm(f => ({ ...f, book_type: e.target.value }))} placeholder="Hardcovers" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Genres</label>
+                    <input value={form.genres ?? ''} onChange={e => setForm(f => ({ ...f, genres: e.target.value }))} placeholder="Fantasy, Romantasy" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Frequency</label>
+                    <input value={form.sub_frequency ?? ''} onChange={e => setForm(f => ({ ...f, sub_frequency: e.target.value }))} placeholder="Monthly / Quarterly" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">What You Get</label>
+                    <input value={form.what_you_get ?? ''} onChange={e => setForm(f => ({ ...f, what_you_get: e.target.value }))} placeholder="1 Hardcover + goodies" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Cost</label>
+                    <input value={form.cost ?? ''} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} placeholder="$30 USD + shipping" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Sub Renews</label>
+                    <input value={form.sub_renews ?? ''} onChange={e => setForm(f => ({ ...f, sub_renews: e.target.value }))} placeholder="4th of the month" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Sub Ships</label>
+                    <input value={form.sub_ships ?? ''} onChange={e => setForm(f => ({ ...f, sub_ships: e.target.value }))} placeholder="By end of month" className={inp} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-slate-500 mb-1 block">Cycle Example</label>
+                    <input value={form.sub_cycle_example ?? ''} onChange={e => setForm(f => ({ ...f, sub_cycle_example: e.target.value }))} placeholder="April box renews Apr 4th, ships by end of April" className={inp} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-slate-500 mb-1 block">Skip / Cancel Policy</label>
+                    <input value={form.skip_notes ?? ''} onChange={e => setForm(f => ({ ...f, skip_notes: e.target.value }))} placeholder="Skip by 3rd of month · 4 skips/year" className={inp} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-slate-500 mb-1 block">Additional Notes</label>
+                    <input value={form.additional_notes ?? ''} onChange={e => setForm(f => ({ ...f, additional_notes: e.target.value }))} placeholder="Other options, combo boxes, etc." className={inp} />
                   </div>
                 </div>
                 <button onClick={() => save(s.id)} disabled={saving} className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">

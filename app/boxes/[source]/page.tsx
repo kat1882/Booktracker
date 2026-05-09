@@ -23,7 +23,7 @@ export default async function BoxArchivePage({
   // Look up the source
   const { data: source } = await supabase
     .from('source')
-    .select('id, name, type')
+    .select('id, name, type, website, logo_url, tagline, ships_from, ships_to, book_type, genres, sub_frequency, what_you_get, cost, sub_renews, sub_ships, sub_cycle_example, skip_notes, additional_notes')
     .ilike('name', sourceName)
     .eq('type', 'subscription_box')
     .single()
@@ -66,15 +66,108 @@ export default async function BoxArchivePage({
         </Link>
         <span className="text-slate-700">/</span>
         <h1 className="text-white font-bold text-sm">{source.name}</h1>
-        <span className="ml-auto text-slate-500 text-xs">{(allEditions ?? []).length} total editions</span>
+        <span className="ml-auto text-slate-500 text-xs">{source.name}</span>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-10">
 
-        <div className="mb-8">
-          <h2 className="text-3xl font-black tracking-tight text-white">{source.name}</h2>
-          <p className="text-slate-500 text-sm mt-1">Complete archive · {months.length} month{months.length !== 1 ? 's' : ''}</p>
+        {/* Header */}
+        <div className="mb-8 flex items-start gap-5">
+          {source.logo_url && (
+            <Image src={source.logo_url} alt={source.name} width={72} height={72} className="rounded-xl object-cover ring-1 ring-white/10 shrink-0" unoptimized />
+          )}
+          <div>
+            <h2 className="text-3xl font-black tracking-tight text-white">{source.name}</h2>
+            {source.tagline && <p className="text-slate-400 text-sm mt-1 italic">"{source.tagline}"</p>}
+            <p className="text-slate-500 text-sm mt-1">Complete archive · {months.length} month{months.length !== 1 ? 's' : ''} · {(allEditions ?? []).length} editions</p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {source.website && (
+                <a href={source.website} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-400 hover:text-violet-300 border border-violet-800/50 px-3 py-1 rounded-full transition-colors flex items-center gap-1">
+                  <span className="material-symbols-outlined text-xs">open_in_new</span>
+                  Website
+                </a>
+              )}
+              {source.genres && source.genres.split(',').map(g => (
+                <span key={g} className="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-full">{g.trim()}</span>
+              ))}
+            </div>
+          </div>
         </div>
+
+        {/* Subscription info panel */}
+        {(source.ships_from || source.cost || source.sub_renews || source.what_you_get || source.sub_frequency) && (
+          <div className="mb-10 bg-slate-900/60 border border-slate-800/50 rounded-2xl p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-violet-400 mb-4">Subscription Info</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {source.ships_from && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Ships From</p>
+                  <p className="text-sm text-white">{source.ships_from}</p>
+                </div>
+              )}
+              {source.ships_to && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Ships To</p>
+                  <p className="text-sm text-white">{source.ships_to}</p>
+                </div>
+              )}
+              {source.book_type && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Book Type</p>
+                  <p className="text-sm text-white">{source.book_type}</p>
+                </div>
+              )}
+              {source.sub_frequency && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Frequency</p>
+                  <p className="text-sm text-white">{source.sub_frequency}</p>
+                </div>
+              )}
+              {source.what_you_get && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">What You Get</p>
+                  <p className="text-sm text-white">{source.what_you_get}</p>
+                </div>
+              )}
+              {source.cost && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Cost</p>
+                  <p className="text-sm text-white">{source.cost}</p>
+                </div>
+              )}
+              {source.sub_renews && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Sub Renews</p>
+                  <p className="text-sm text-white">{source.sub_renews}</p>
+                </div>
+              )}
+              {source.sub_ships && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Sub Ships</p>
+                  <p className="text-sm text-white">{source.sub_ships}</p>
+                </div>
+              )}
+            </div>
+            {source.sub_cycle_example && (
+              <div className="mt-4 pt-4 border-t border-slate-800/50">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Example Cycle</p>
+                <p className="text-sm text-slate-300">{source.sub_cycle_example}</p>
+              </div>
+            )}
+            {source.skip_notes && (
+              <div className="mt-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Skip / Cancel</p>
+                <p className="text-sm text-slate-300">{source.skip_notes}</p>
+              </div>
+            )}
+            {source.additional_notes && (
+              <div className="mt-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Additional Notes</p>
+                <p className="text-sm text-slate-300">{source.additional_notes}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {months.length === 0 ? (
           <div className="text-center py-24 text-slate-600">

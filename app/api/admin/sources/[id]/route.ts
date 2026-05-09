@@ -16,6 +16,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ('website' in body) updates.website = body.website?.trim() || null
   if ('logo_url' in body) updates.logo_url = body.logo_url?.trim() || null
   if ('brand' in body) updates.brand = body.brand?.trim() || null
+  const infoFields = ['tagline','ships_from','ships_to','book_type','genres','sub_frequency','what_you_get','cost','sub_renews','sub_ships','sub_cycle_example','skip_notes','additional_notes']
+  for (const f of infoFields) {
+    if (f in body) updates[f] = body[f]?.trim() || null
+  }
 
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
