@@ -14,12 +14,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Cannot message yourself' }, { status: 400 })
   }
 
+  // Generate a thread_id so replies can reference this conversation
+  const thread_id = crypto.randomUUID()
+
   const { error } = await supabase.from('marketplace_inquiry').insert({
     listing_id,
     from_user_id: user.id,
     to_user_id,
     message: message.trim(),
     offer_price: offer_price ?? null,
+    thread_id,
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
