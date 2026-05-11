@@ -23,7 +23,7 @@ interface Props {
 
 const BLANK = {
   source_id: '', book_title: '', author: '', release_date: '', edition_type: '',
-  notes: '', cover_image_url: '', edition_id: '',
+  notes: '', cover_image_url: '', edition_id: '', set_size: '',
 }
 
 export default function AdminCalendarClient({ initialEntries, sources }: Props) {
@@ -116,10 +116,29 @@ export default function AdminCalendarClient({ initialEntries, sources }: Props) 
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
               <option value="">—</option>
               <option value="subscription_box">Subscription Box</option>
+              <option value="exclusive">Exclusive</option>
               <option value="signed">Signed</option>
               <option value="illustrated">Illustrated</option>
+              <option value="deluxe">Deluxe</option>
+              <option value="collectors">Collector&apos;s</option>
               <option value="limited">Limited</option>
+              <option value="standard">Standard</option>
+              <option value="other">Other</option>
             </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">
+              Set Size <span className="text-gray-600">(for box sets — splits price per book)</span>
+            </label>
+            <input
+              type="number"
+              min="2"
+              max="20"
+              value={form.set_size}
+              onChange={e => setForm(f => ({ ...f, set_size: e.target.value }))}
+              placeholder="e.g. 3 for a trilogy"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+            />
           </div>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Cover Image URL</label>
@@ -166,10 +185,18 @@ export default function AdminCalendarClient({ initialEntries, sources }: Props) 
               </div>
               <p className="text-sm text-white font-medium mt-0.5">{entry.book_title}</p>
               {entry.author && <p className="text-xs text-gray-500">{entry.author}</p>}
+              <div className="flex flex-wrap gap-2 mt-1">
+                {entry.edition_type && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-900/40 text-violet-300 capitalize">{entry.edition_type.replace('_', ' ')}</span>
+                )}
+                {(entry as any).set_size && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300">Set of {(entry as any).set_size}</span>
+                )}
+                {entry.edition_id && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-300">✓ Linked</span>
+                )}
+              </div>
               {entry.notes && <p className="text-xs text-gray-600 mt-1">{entry.notes}</p>}
-              {entry.edition_id && (
-                <p className="text-xs text-emerald-500 mt-0.5">✓ Linked to edition</p>
-              )}
             </div>
             <button onClick={() => deleteEntry(entry.id)}
               className="text-gray-600 hover:text-red-400 transition-colors text-lg leading-none shrink-0">

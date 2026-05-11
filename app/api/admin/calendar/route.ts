@@ -43,6 +43,7 @@ export async function POST(req: Request) {
       notes: body.notes || null,
       cover_image_url: body.cover_image_url || null,
       edition_id: body.edition_id || null,
+      set_size: body.set_size ? Number(body.set_size) : null,
     })
     .select()
     .single()
@@ -57,7 +58,7 @@ export async function PATCH(req: Request) {
   const admin = adminClient()
   const body = await req.json()
   const { id, ...fields } = body
-  const allowed = ['book_title','author','release_date','edition_type','notes','cover_image_url','edition_id','source_id']
+  const allowed = ['book_title','author','release_date','edition_type','notes','cover_image_url','edition_id','source_id','set_size']
   const update = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)))
 
   const { error } = await admin.from('release_calendar').update(update).eq('id', id)
