@@ -32,24 +32,86 @@ export async function POST(req: Request) {
 
   const admin = adminClient()
   const body = await req.json()
+
+  let editionId = body.edition_id || null
+
+  // Auto-create book + edition unless an edition_id was manually provided
+  if (!editionId && body.book_title?.trim()) {
+    const bookTitle  = body.book_title.trim()
+    const author     = body.author?.trim() || 'Unknown'
+    const sourceId   = body.source_id || null
+    const setSize    = body.set_size ? Number(body.set_size) : null
+    const edType     = body.edition_type || 'other'
+    const coverImage = body.cover_image_url?.trim() || null
+
+    // 1. Find or create book
+    let bookId: string | null = null
+    const { data: existingBook } = await admin
+      .from('book')
+      .select('id')
+      .ilike('title', bookTitle)
+      .ilike('author', author)
+      .limit(1)
+      .single()
+
+    if (existingBook) {
+      bookId = existingBook.id
+    } else {
+      const { data: newBook } = await admin
+        .from('book')
+        .insert({ title: bookTitle, author })
+        .select('id')
+        .single()
+      bookId = newBook?.id ?? null
+    }
+
+    // 2. Build edition name
+    let editionName = bookTitle
+    if (sourceId) {
+      const { data: src } = await admin.from('source').select('name').eq('id', sourceId).single()
+      if (src) editionName = `${bookTitle} (${src.name} Edition)`
+    } else if (edType && edType !== 'other') {
+      const typeLabel = edType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+      editionName = `${bookTitle} – ${typeLabel.toUpperCase()} EDITION`
+    }
+
+    // 3. Create edition
+    if (bookId) {
+      const { data: newEdition } = await admin
+        .from('edition')
+        .insert({
+          book_id:      bookId,
+          source_id:    sourceId,
+          edition_name: editionName,
+          edition_type: edType,
+          set_size:     setSize,
+          cover_image:  coverImage,
+        })
+        .select('id')
+        .single()
+      editionId = newEdition?.id ?? null
+    }
+  }
+
+  // 4. Save calendar entry
   const { data, error } = await admin
     .from('release_calendar')
     .insert({
-      source_id: body.source_id || null,
-      book_title: body.book_title,
-      author: body.author || null,
-      release_date: body.release_date,
-      edition_type: body.edition_type || null,
-      notes: body.notes || null,
+      source_id:       body.source_id || null,
+      book_title:      body.book_title,
+      author:          body.author || null,
+      release_date:    body.release_date,
+      edition_type:    body.edition_type || null,
+      notes:           body.notes || null,
       cover_image_url: body.cover_image_url || null,
-      edition_id: body.edition_id || null,
-      set_size: body.set_size ? Number(body.set_size) : null,
+      edition_id:      editionId,
+      set_size:        body.set_size ? Number(body.set_size) : null,
     })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ entry: data })
+  return NextResponse.json({ entry: data, edition_created: !!editionId && !body.edition_id })
 }
 
 export async function PATCH(req: Request) {

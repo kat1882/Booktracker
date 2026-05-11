@@ -47,7 +47,7 @@ export default function AdminCalendarClient({ initialEntries, sources }: Props) 
       setEntries(prev => [...prev, { ...data.entry, source: src ? { id: src.id, name: src.name } : null }]
         .sort((a, b) => a.release_date.localeCompare(b.release_date)))
       setForm(BLANK)
-      setMsg('Added!')
+      setMsg(data.edition_created ? '✓ Added — book & edition created automatically' : '✓ Added')
     } else {
       setMsg('Error: ' + data.error)
     }
@@ -146,9 +146,11 @@ export default function AdminCalendarClient({ initialEntries, sources }: Props) 
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Edition ID (if exists)</label>
+            <label className="text-xs text-gray-500 block mb-1">
+              Edition ID <span className="text-gray-600">(optional — leave blank to auto-create)</span>
+            </label>
             <input value={form.edition_id} onChange={e => setForm(f => ({ ...f, edition_id: e.target.value }))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="uuid" />
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Leave blank to auto-create from fields above" />
           </div>
           <div className="col-span-2">
             <label className="text-xs text-gray-500 block mb-1">Notes</label>
