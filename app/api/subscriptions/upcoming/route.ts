@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -14,11 +14,21 @@ export async function GET() {
   const { data: sources } = await supabase.from('source').select('id, name').in('id', subscribedIds)
   const sourceMap = Object.fromEntries((sources ?? []).map((s: any) => [s.id, s]))
 
-  const now = new Date()
-  const months = [
-    { month: now.toLocaleString('en-US', { month: 'long' }), year: String(now.getFullYear()) },
-    { month: new Date(now.getFullYear(), now.getMonth() + 1).toLocaleString('en-US', { month: 'long' }), year: String(new Date(now.getFullYear(), now.getMonth() + 1).getFullYear()) },
-  ]
+  // Accept optional ?month=May&year=2026 — default to current + next month
+  const url = new URL(req.url)
+  const qMonth = url.searchParams.get('month')
+  const qYear  = url.searchParams.get('year')
+
+  let months: { month: string; year: string }[]
+  if (qMonth && qYear) {
+    months = [{ month: qMonth, year: qYear }]
+  } else {
+    const now = new Date()
+    months = [
+      { month: now.toLocaleString('en-US', { month: 'long' }), year: String(now.getFullYear()) },
+      { month: new Date(now.getFullYear(), now.getMonth() + 1).toLocaleString('en-US', { month: 'long' }), year: String(new Date(now.getFullYear(), now.getMonth() + 1).getFullYear()) },
+    ]
+  }
 
   const monthFilter = months
     .flatMap(({ month, year }) => [
@@ -33,7 +43,6 @@ export async function GET() {
     .in('source_id', subscribedIds)
     .or(monthFilter)
 
-  // Deduplicate
   const seen = new Set<string>()
   const allEditions = (raw ?? []).filter((ed: any) => {
     if (seen.has(ed.id)) return false

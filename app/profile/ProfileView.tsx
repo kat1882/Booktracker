@@ -63,6 +63,19 @@ export default function ProfileView({
   const [upcomingBySource, setUpcomingBySource] = useState<UpcomingGroup[]>(initialUpcoming)
   const [, startTransition] = useTransition()
   const [boxSearch, setBoxSearch] = useState('')
+  const [upcomingLoading, setUpcomingLoading] = useState(false)
+
+  // Build the next 6 months as selectable options
+  const monthOptions = useMemo(() => {
+    const now = new Date()
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+      const month = d.toLocaleString('en-US', { month: 'long' })
+      const year  = String(d.getFullYear())
+      return { month, year, label: d.toLocaleString('en-US', { month: 'short' }) + ' ' + year }
+    })
+  }, [])
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0)
 
   const filteredBoxSources = useMemo(
     () => boxSources.filter(s => s.name.toLowerCase().includes(boxSearch.toLowerCase())),
@@ -92,9 +105,19 @@ export default function ProfileView({
     { label: 'This Year', value: thisYearCount, icon: 'calendar_month', color: 'text-blue-400' },
   ]
 
+  async function fetchUpcoming(monthIdx: number) {
+    const { month, year } = monthOptions[monthIdx]
+    setUpcomingLoading(true)
+    const res = await fetch(`/api/subscriptions/upcoming?month=${encodeURIComponent(month)}&year=${year}`)
+    if (res.ok) {
+      const data = await res.json()
+      setUpcomingBySource(data.upcomingBySource ?? [])
+    }
+    setUpcomingLoading(false)
+  }
+
   async function toggleSubscription(sourceId: string) {
     const isSubbed = subscribedIds.has(sourceId)
-    // Optimistic update
     const next = new Set(subscribedIds)
     if (isSubbed) next.delete(sourceId)
     else next.add(sourceId)
@@ -106,13 +129,13 @@ export default function ProfileView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_id: sourceId }),
       })
-      // Refresh upcoming editions after toggle
-      const res = await fetch('/api/subscriptions/upcoming', { method: 'GET' })
-      if (res.ok) {
-        const data = await res.json()
-        setUpcomingBySource(data.upcomingBySource ?? [])
-      }
+      await fetchUpcoming(selectedMonthIdx)
     })
+  }
+
+  async function handleMonthSelect(idx: number) {
+    setSelectedMonthIdx(idx)
+    await fetchUpcoming(idx)
   }
 
   return (
@@ -484,10 +507,32 @@ export default function ProfileView({
 
                 {/* ── RIGHT: Upcoming Drops ── */}
                 <div>
-                  <div className="mb-6">
-                    <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">Coming Up</p>
-                    <h2 className="text-xl font-bold text-white">Upcoming Drops</h2>
-                    <p className="text-slate-400 text-sm mt-1">Editions from your subscribed boxes this month and next.</p>
+                  <div className="mb-5">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div>
+                        <p className="text-violet-400 text-xs font-bold uppercase tracking-widest mb-1">Coming Up</p>
+                        <h2 className="text-xl font-bold text-white">Upcoming Drops</h2>
+                      </div>
+                      {upcomingLoading && (
+                        <span className="material-symbols-outlined text-slate-600 text-lg animate-spin mt-1">progress_activity</span>
+                      )}
+                    </div>
+                    {/* Month selector */}
+                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                      {monthOptions.map((m, i) => (
+                        <button
+                          key={m.label}
+                          onClick={() => handleMonthSelect(i)}
+                          className={`flex-none px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                            selectedMonthIdx === i
+                              ? 'bg-violet-600/30 text-violet-200 border border-violet-500/50'
+                              : 'bg-slate-800/60 border border-slate-700/50 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {subscribedIds.size === 0 ? (
@@ -498,7 +543,7 @@ export default function ProfileView({
                   ) : upcomingBySource.length === 0 ? (
                     <div className="py-20 text-center border border-dashed border-slate-800 rounded-2xl text-slate-600">
                       <span className="material-symbols-outlined text-4xl mb-3 block text-slate-700">calendar_month</span>
-                      <p className="text-sm">No upcoming editions found for your subscribed boxes.</p>
+                      <p className="text-sm">No editions found for {monthOptions[selectedMonthIdx]?.label}.</p>
                       <Link href="/boxes" className="text-violet-400 hover:text-violet-300 text-sm mt-2 inline-block">Browse all boxes →</Link>
                     </div>
                   ) : (
