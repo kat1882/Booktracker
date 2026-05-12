@@ -32,7 +32,7 @@ function cleanCover(url?: string) {
   return url.replace('http://', 'https://').replace('zoom=1', 'zoom=3').replace('&edge=curl', '')
 }
 
-const editionSelect = '*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, source:source_id(name))'
+const editionSelect = '*, editions:edition(id, edition_name, cover_image, edition_type, release_month, original_retail_price, estimated_value, source:source_id(name))'
 
 export default async function BookPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id } = await params
@@ -120,16 +120,16 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   const specialEditions = allEditions.filter(e => e.edition_type !== 'standard')
   const standardEditions = allEditions.filter(e => e.edition_type === 'standard')
 
-  // Get user's shelf status
+  // Get user's shelf status + wishlisted edition IDs
   let shelfStatus: string | null = null
+  let wishlistedIds = new Set<string>()
   if (user && dbBook?.id) {
-    const { data: collection } = await supabase
-      .from('user_collection')
-      .select('reading_status')
-      .eq('user_id', user.id)
-      .eq('book_id', dbBook.id)
-      .maybeSingle()
+    const [{ data: collection }, { data: wishlist }] = await Promise.all([
+      supabase.from('user_collection').select('reading_status').eq('user_id', user.id).eq('book_id', dbBook.id).maybeSingle(),
+      supabase.from('user_wishlist').select('edition_id').eq('user_id', user.id),
+    ])
     shelfStatus = collection?.reading_status ?? null
+    wishlistedIds = new Set((wishlist ?? []).map((w: { edition_id: string }) => w.edition_id))
   }
 
   return (
@@ -179,6 +179,8 @@ export default async function BookPage({ params, searchParams }: { params: Promi
         specialEditions={specialEditions}
         standardEditions={standardEditions}
         coverUrl={coverUrl}
+        wishlistedIds={wishlistedIds}
+        isLoggedIn={!!user}
       />
     </div>
   )
