@@ -7,6 +7,7 @@ import type { Metadata } from 'next'
 import WishlistButton from './WishlistButton'
 import AddEditionToShelfButton from './AddEditionToShelfButton'
 import EditionReviews from './EditionReviews'
+import SuggestCoverButton from './SuggestCoverButton'
 import PriceChart from './PriceChart'
 import AddToListButton from './AddToListButton'
 import EditionGallery from './EditionGallery'
@@ -440,6 +441,29 @@ export default async function EditionPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         )}
+
+        {/* Suggest cover / improve */}
+        <div className="mt-10 border-t border-slate-800 pt-6">
+          <p className="text-xs text-slate-600 mb-2">Help improve this edition</p>
+          <div className="flex flex-wrap gap-4 items-start">
+            <SuggestCoverButton
+              editionId={id}
+              editionName={edition.edition_name}
+              bookTitle={book.title ?? ''}
+              bookAuthor={book.author ?? ''}
+              sourceName={(edition.source as any)?.name ?? ''}
+              editionType={edition.edition_type ?? 'other'}
+              isLoggedIn={!!user}
+            />
+            <a
+              href={`/submit?book_title=${encodeURIComponent(book.title ?? '')}&author=${encodeURIComponent(book.author ?? '')}`}
+              className="text-xs text-slate-500 hover:text-violet-400 transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">add_circle</span>
+              Submit a missing edition
+            </a>
+          </div>
+        </div>
 
         {/* Reviews */}
         <EditionReviews editionId={id} isLoggedIn={!!user} initialReviews={reviews} />

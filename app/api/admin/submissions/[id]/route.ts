@@ -18,7 +18,7 @@ export async function POST(
 
   const { action, rejection_reason } = await req.json()
 
-  if (action !== 'approve' && action !== 'reject') {
+  if (!['approve', 'reject', 'apply_cover'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
@@ -31,6 +31,20 @@ export async function POST(
 
   if (fetchErr || !sub) {
     return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
+  }
+
+  // APPLY COVER: update cover_image on an existing edition
+  if (action === 'apply_cover') {
+    if (!sub.edition_id || !sub.cover_image_url) {
+      return NextResponse.json({ error: 'Missing edition_id or cover_image_url' }, { status: 400 })
+    }
+    await supabase.from('edition').update({ cover_image: sub.cover_image_url }).eq('id', sub.edition_id)
+    await supabase.from('edition_submission').update({
+      status: 'approved',
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(),
+    }).eq('id', id)
+    return NextResponse.json({ ok: true })
   }
 
   if (action === 'reject') {

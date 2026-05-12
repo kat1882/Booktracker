@@ -20,6 +20,7 @@ interface Submission {
   status: string
   rejection_reason?: string
   reviewed_at?: string
+  edition_id?: string   // set = cover suggestion for existing edition
 }
 
 export default function ApprovalQueue({
@@ -33,7 +34,7 @@ export default function ApprovalQueue({
   const [loading, setLoading] = useState<string | null>(null)
   const [rejectionNote, setRejectionNote] = useState<Record<string, string>>({})
 
-  async function handleDecision(id: string, action: 'approve' | 'reject') {
+  async function handleDecision(id: string, action: 'approve' | 'reject' | 'apply_cover') {
     setLoading(id)
     const res = await fetch(`/api/admin/submissions/${id}`, {
       method: 'POST',
@@ -118,6 +119,30 @@ export default function ApprovalQueue({
           {/* Actions — pending only */}
           {activeStatus === 'pending' && (
             <div className="border-t border-slate-800 px-5 py-3 flex items-center gap-3">
+              {/* Cover suggestion — simpler actions */}
+              {sub.edition_id ? (
+                <>
+                  <span className="flex-1 text-xs text-violet-400 font-medium">
+                    <span className="material-symbols-outlined text-sm align-middle mr-1">add_photo_alternate</span>
+                    Cover suggestion for existing edition
+                  </span>
+                  <button
+                    onClick={() => handleDecision(sub.id, 'reject')}
+                    disabled={loading === sub.id}
+                    className="px-4 py-1.5 rounded-lg text-xs font-medium bg-red-900/40 text-red-400 hover:bg-red-900/60 disabled:opacity-50 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    onClick={() => handleDecision(sub.id, 'apply_cover')}
+                    disabled={loading === sub.id}
+                    className="px-4 py-1.5 rounded-lg text-xs font-medium bg-violet-900/40 text-violet-300 hover:bg-violet-900/60 disabled:opacity-50 transition-colors"
+                  >
+                    {loading === sub.id ? '…' : 'Apply Cover'}
+                  </button>
+                </>
+              ) : (
+              <>
               <input
                 type="text"
                 placeholder="Rejection reason (optional)"
@@ -139,6 +164,8 @@ export default function ApprovalQueue({
               >
                 {loading === sub.id ? 'Processing…' : 'Approve'}
               </button>
+              </>
+              )}
             </div>
           )}
         </div>

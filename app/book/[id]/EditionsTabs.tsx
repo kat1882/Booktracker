@@ -227,7 +227,10 @@ export default function EditionsTabs({
             ))}
           </div>
           <div className="mt-5 text-center">
-            <Link href="/submit" className="text-xs text-slate-700 hover:text-violet-400 transition-colors">
+            <Link
+              href={`/submit?book_title=${encodeURIComponent(filtered[0]?.edition_name ?? '')}&author=`}
+              className="text-xs text-slate-700 hover:text-violet-400 transition-colors"
+            >
               Don't see your edition? Submit it →
             </Link>
           </div>
