@@ -8,15 +8,16 @@ const ADMIN_USER_ID = 'd7e5e026-425b-4824-85a5-88d3412b95d3'
 export default async function AdminGalleryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; source?: string; page?: string }>
+  searchParams: Promise<{ filter?: string; source?: string; page?: string; q?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || user.id !== ADMIN_USER_ID) redirect('/')
 
-  const { filter, source, page: pageStr } = await searchParams
+  const { filter, source, page: pageStr, q } = await searchParams
   const activeFilter = filter ?? 'all'
   const activeSource = source ?? ''
+  const searchQuery = q ?? ''
   const page = Math.max(1, parseInt(pageStr ?? '1'))
   const PAGE_SIZE = 60
   const offset = (page - 1) * PAGE_SIZE
@@ -31,6 +32,7 @@ export default async function AdminGalleryPage({
   if (activeFilter === 'no_cover')  query = query.is('cover_image', null)
   if (activeFilter === 'no_month')  query = query.is('release_month', null)
   if (activeFilter === 'no_source') query = query.is('source_id', null)
+  if (searchQuery) query = query.ilike('edition_name', `%${searchQuery}%`)
 
   const { data: editions, count } = await query
 
@@ -62,6 +64,7 @@ export default async function AdminGalleryPage({
         pageSize={PAGE_SIZE}
         activeFilter={activeFilter}
         activeSource={activeSource}
+        searchQuery={searchQuery}
         noCovers={noCovers ?? 0}
         noMonths={noMonths ?? 0}
         noSources={noSources ?? 0}

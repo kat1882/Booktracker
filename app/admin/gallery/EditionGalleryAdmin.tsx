@@ -156,6 +156,7 @@ export default function EditionGalleryAdmin({
   pageSize,
   activeFilter,
   activeSource,
+  searchQuery,
   noCovers,
   noMonths,
   noSources,
@@ -167,6 +168,7 @@ export default function EditionGalleryAdmin({
   pageSize: number
   activeFilter: string
   activeSource: string
+  searchQuery: string
   noCovers: number
   noMonths: number
   noSources: number
@@ -175,6 +177,7 @@ export default function EditionGalleryAdmin({
   const router = useRouter()
   const [editions, setEditions] = useState<Edition[]>(initialEditions)
   const [editing, setEditing] = useState<Edition | null>(null)
+  const [searchInput, setSearchInput] = useState(searchQuery)
   const [, startTransition] = useTransition()
 
   function navigate(params: Record<string, string>) {
@@ -182,7 +185,13 @@ export default function EditionGalleryAdmin({
     if (params.filter && params.filter !== 'all') sp.set('filter', params.filter)
     if (params.source) sp.set('source', params.source)
     if (params.page && params.page !== '1') sp.set('page', params.page)
+    if (params.q) sp.set('q', params.q)
     startTransition(() => router.push(`/admin/gallery?${sp.toString()}`))
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    navigate({ filter: activeFilter, source: activeSource, q: searchInput })
   }
 
   function handleSaved(id: string, updated: Partial<Edition>) {
@@ -201,12 +210,37 @@ export default function EditionGalleryAdmin({
 
   return (
     <>
+      {/* Search */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+        <div className="relative flex-1 max-w-sm">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">search</span>
+          <input
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            placeholder="Search edition names…"
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500 transition-colors"
+          />
+        </div>
+        <button type="submit" className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors">
+          Search
+        </button>
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => { setSearchInput(''); navigate({ filter: activeFilter, source: activeSource }) }}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm rounded-lg transition-colors"
+          >
+            Clear
+          </button>
+        )}
+      </form>
+
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-5">
         {filters.map(f => (
           <button
             key={f.key}
-            onClick={() => navigate({ filter: f.key, source: activeSource })}
+            onClick={() => navigate({ filter: f.key, source: activeSource, q: searchQuery })}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
               activeFilter === f.key
                 ? 'bg-violet-600 text-white'
@@ -225,7 +259,7 @@ export default function EditionGalleryAdmin({
         {/* Source filter */}
         <select
           value={activeSource}
-          onChange={e => navigate({ filter: activeFilter, source: e.target.value })}
+          onChange={e => navigate({ filter: activeFilter, source: e.target.value, q: searchQuery })}
           className="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-violet-500"
         >
           <option value="">All sources</option>
