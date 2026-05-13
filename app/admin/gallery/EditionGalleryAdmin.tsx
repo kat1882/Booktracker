@@ -37,6 +37,7 @@ function QuickEditPanel({
   const [author, setAuthor] = useState(edition.book?.author ?? '')
   const [bookTitle, setBookTitle] = useState(edition.book?.title ?? '')
   const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
   const [preview, setPreview] = useState(edition.cover_image ?? '')
 
   async function save() {
@@ -65,6 +66,9 @@ function QuickEditPanel({
         source:        sources.find(s => s.id === srcId) ?? null,
         book:          { title: bookTitle, author },
       })
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? `Save failed (${res.status})`)
     }
   }
 
@@ -146,6 +150,10 @@ function QuickEditPanel({
               <input value={author} onChange={e => setAuthor(e.target.value)} className={inp} />
             </div>
           </div>
+
+          {error && (
+            <p className="text-red-400 text-xs bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">{error}</p>
+          )}
 
           <div className="flex gap-2 pt-2">
             <button onClick={onClose} className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl transition-colors">

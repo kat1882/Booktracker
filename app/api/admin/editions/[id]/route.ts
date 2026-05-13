@@ -6,7 +6,7 @@ const ADMIN_USER_ID = 'd7e5e026-425b-4824-85a5-88d3412b95d3'
 const ALLOWED = ['edition_name', 'edition_type', 'cover_image', 'original_retail_price',
   'estimated_value', 'price_override', 'isbn', 'publisher', 'release_month', 'print_run_size',
   'cover_artist', 'edge_treatment', 'binding', 'foiling', 'signature_type', 'extras', 'notes', 'sku',
-  'set_size']
+  'set_size', 'source_id']
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -16,9 +16,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await request.json()
   const updates = Object.fromEntries(Object.entries(body).filter(([k]) => ALLOWED.includes(k)))
-
-  // Also handle source_id (not in ALLOWED but needed for gallery quick-edit)
-  if ('source_id' in body) updates.source_id = body.source_id || null
 
   if (Object.keys(updates).length === 0 && !body.book_author && !body.book_title) {
     return NextResponse.json({ error: 'No valid fields' }, { status: 400 })
