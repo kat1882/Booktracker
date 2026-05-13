@@ -34,17 +34,21 @@ function QuickEditPanel({
   const [month,  setMonth]  = useState(edition.release_month ?? '')
   const [type,   setType]   = useState(edition.edition_type ?? '')
   const [srcId,  setSrcId]  = useState(edition.source?.id ?? '')
+  const [author, setAuthor] = useState(edition.book?.author ?? '')
+  const [bookTitle, setBookTitle] = useState(edition.book?.title ?? '')
   const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState(edition.cover_image ?? '')
 
   async function save() {
     setSaving(true)
     const body: any = {
-      edition_name: name.trim(),
-      cover_image:  cover.trim() || null,
+      edition_name:  name.trim(),
+      cover_image:   cover.trim() || null,
       release_month: month || null,
-      edition_type: type || null,
-      source_id:   srcId || null,
+      edition_type:  type || null,
+      source_id:     srcId || null,
+      book_author:   author.trim() || null,
+      book_title:    bookTitle.trim() || null,
     }
     const res = await fetch(`/api/admin/editions/${edition.id}`, {
       method: 'PATCH',
@@ -59,6 +63,7 @@ function QuickEditPanel({
         release_month: month || null,
         edition_type:  type || null,
         source:        sources.find(s => s.id === srcId) ?? null,
+        book:          { title: bookTitle, author },
       })
     }
   }
@@ -129,6 +134,17 @@ function QuickEditPanel({
               <option value="">— No source —</option>
               {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-800">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Book Title</label>
+              <input value={bookTitle} onChange={e => setBookTitle(e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Author</label>
+              <input value={author} onChange={e => setAuthor(e.target.value)} className={inp} />
+            </div>
           </div>
 
           <div className="flex gap-2 pt-2">

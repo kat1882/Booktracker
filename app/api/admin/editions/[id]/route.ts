@@ -17,10 +17,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json()
   const updates = Object.fromEntries(Object.entries(body).filter(([k]) => ALLOWED.includes(k)))
 
-  if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'No valid fields' }, { status: 400 })
+  // Also handle source_id (not in ALLOWED but needed for gallery quick-edit)
+  if ('source_id' in body) updates.source_id = body.source_id || null
 
-  const { error } = await supabase.from('edition').update(updates).eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (Object.keys(updates).length === 0 && !body.book_author && !body.book_title) {
+    return NextResponse.json({ error: 'No valid fields' }, { status: 400 })
+  }
+
+  if (Object.keys(updates).length > 0) {
+    const { error } = await supabase.from('edition').update(updates).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Update the linked book's author/title if provided
+  if (body.book_author || body.book_title) {
+    const { data: ed } = await supabase.from('edition').select('book_id').eq('id', id).single()
+    if (ed?.book_id) {
+      const bookUpdates: Record<string, string> = {}
+      if (body.book_author?.trim()) bookUpdates.author = body.book_author.trim()
+      if (body.book_title?.trim())  bookUpdates.title  = body.book_title.trim()
+      await supabase.from('book').update(bookUpdates).eq('id', ed.book_id)
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 
